@@ -1,0 +1,128 @@
+[versions]
+# Toolchain — locked to the same versions ubo-kotlin-grpc uses so the two
+# Gradle settings can co-resolve plugins for shared :lib + :protos modules.
+agp = "8.13.2"
+kotlin = "2.0.21"
+coroutines = "1.9.0"
+
+# Protobuf / gRPC (only needed because :protos is included from this build)
+protobuf = "4.28.3"
+protobufPlugin = "0.9.4"
+grpc = "1.68.1"
+grpcKotlin = "1.4.1"
+
+# Test deps (needed because the included :lib module's build.gradle.kts
+# resolves them against this catalog)
+junit5 = "5.11.3"
+truth = "1.4.4"
+
+# AndroidX
+androidxAnnotation = "1.9.1"
+activityCompose = "1.9.3"
+lifecycleCompose = "2.8.7"
+lifecycleRuntimeKtx = "2.8.7"
+lifecycleViewmodelCompose = "2.8.7"
+datastorePreferences = "1.1.1"
+
+# Compose
+composeBom = "2024.12.01"
+
+# QR generation (RenderViewData kind = qr_code / qr_code_carousel)
+zxingCore = "3.5.3"
+
+# CameraX
+cameraX = "1.4.0"
+
+# Lifecycle (process-level) for service/lifecycle binding
+lifecycleService = "2.8.7"
+
+# Wear OS — Wear Compose Material is a separate artifact set from
+# Material 3; keep these versions independent.
+wearComposeMaterial = "1.4.0"
+wearComposeFoundation = "1.4.0"
+
+# Glance (home-screen widget) + WorkManager (periodic refresh).
+# WorkManager pinned just below the version that bumps compileSdk to 35
+# so the rest of the project can stay on compileSdk 34 / Android 14.
+glance = "1.1.1"
+workManager = "2.9.1"
+
+# Min/target SDK — mirrors plan: API 31 / Android 12 floor.
+minSdk = "31"
+compileSdk = "34"
+targetSdk = "34"
+
+[libraries]
+# AndroidX runtime
+androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidxAnnotation" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycleCompose" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
+
+# Compose BOM-managed libraries
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+# ZXing core for QR-code matrix generation. Pure-JVM, no Android-specific
+# wrapper — we render the resulting BitMatrix into a Compose ImageBitmap.
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxingCore" }
+
+# CameraX — phone-app's CameraService uses ImageAnalysis to forward frames
+# to the device's camera viewfinder via gRPC.
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraX" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraX" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraX" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraX" }
+androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycleService" }
+
+# Wear Compose — primary UI framework for the watch app. Pulls in its own
+# theme, ScalingLazyColumn, rotary input modifiers, etc.
+wear-compose-material = { module = "androidx.wear.compose:compose-material", version.ref = "wearComposeMaterial" }
+wear-compose-foundation = { module = "androidx.wear.compose:compose-foundation", version.ref = "wearComposeFoundation" }
+
+# Glance — Compose-based App Widget framework. The widget composables run
+# in the launcher's process; data is read from a process-safe DataStore.
+glance-appwidget = { module = "androidx.glance:glance-appwidget", version.ref = "glance" }
+glance-material3 = { module = "androidx.glance:glance-material3", version.ref = "glance" }
+
+# WorkManager — periodic widget refresh.
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }
+
+# Kotlin / coroutines
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
+coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# Tests
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
+truth = { module = "com.google.truth:truth", version.ref = "truth" }
+
+# Proto + gRPC runtime (needed by :protos and transitively by :lib consumers)
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+grpc-okhttp = { module = "io.grpc:grpc-okhttp", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-kotlin-stub = { module = "io.grpc:grpc-kotlin-stub", version.ref = "grpcKotlin" }
+
+# Code generators (consumed by the protobuf gradle plugin in :protos)
+protoc-binary = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
+protoc-gen-grpc-java = { module = "io.grpc:protoc-gen-grpc-java", version.ref = "grpc" }
+protoc-gen-grpc-kotlin = { module = "io.grpc:protoc-gen-grpc-kotlin", version.ref = "grpcKotlin" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobufPlugin" }

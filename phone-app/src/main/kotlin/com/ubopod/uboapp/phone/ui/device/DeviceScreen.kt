@@ -1,0 +1,157 @@
+package com.ubopod.uboapp.phone.ui.device
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ubopod.uboapp.phone.ui.common.IconView
+import com.ubopod.uboapp.phone.ui.common.splitLeadingGlyph
+import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
+import com.ubopod.ubokotlin.connection.ConnectionState
+import com.ubopod.ubokotlin.models.ViewData
+import kotlinx.coroutines.launch
+
+/**
+ * Top-level connected screen. Renders the current [ViewData] with the
+ * matching renderer; falls back to a "Waiting for view…" placeholder
+ * before the first frame arrives.
+ *
+ * Mirrors `ubo-swift-app/ubo-swift-app/Views/Device/DeviceView.swift`.
+ */
+@Composable
+public fun DeviceScreen(viewModel: DeviceViewModel) {
+    val view by viewModel.currentView.collectAsStateWithLifecycle()
+    val state by viewModel.connectionState.collectAsStateWithLifecycle()
+    val statusBar by viewModel.statusBar.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+
+    // No safeDrawingPadding here — `ConnectedShell`'s Scaffold already
+    // hands us its `innerPadding`, which accounts for the system bars
+    // and the bottom NavigationBar. Stacking `safeDrawingPadding`
+    // on top would double-inset the layout (the toolbar would push
+    // away from the status bar by 2× its height).
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        DeviceTopBar(
+            title = statusBar?.title.orEmpty().ifEmpty { view?.type ?: "Ubo" },
+            connectionState = state,
+            onBack = { scope.launch { runCatching { viewModel.client.goBack() } } },
+            // Disconnect routes the screen away → use the ViewModel-scoped
+            // helper so the suspending shutdown survives composition swap.
+            onDisconnect = { viewModel.triggerDisconnect() },
+        )
+        Spacer(Modifier.size(8.dp))
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            when (val v = view) {
+                is ViewData.Home -> HomeViewRenderer(v.data, viewModel)
+                is ViewData.Menu -> MenuViewRenderer(v.data, viewModel)
+                is ViewData.Notification -> NotificationViewRenderer(v.data, viewModel)
+                is ViewData.Application -> ApplicationViewRenderer(v.data, viewModel)
+                is ViewData.Instruction -> InstructionViewRenderer(v.data, viewModel)
+                is ViewData.Prompt -> PromptViewRenderer(v.data, viewModel)
+                is ViewData.Render -> RenderViewRenderer(v.data, viewModel)
+                null -> WaitingForView(state)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceTopBar(
+    title: String,
+    connectionState: ConnectionState,
+    onBack: () -> Unit,
+    onDisconnect: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        androidx.compose.foundation.layout.Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            // Status-bar titles often start with a Nerd-Font PUA glyph
+            // (e.g. the device-host title `\u{F005C}ubo-6j.local`). The
+            // glyph needs the bundled arimo_nerd.ttf to render — pulling
+            // it through IconView keeps the rest of the title in the
+            // Material 3 theme font.
+            val (leadingGlyph, rest) = splitLeadingGlyph(title)
+            Row(
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (leadingGlyph != null) {
+                    IconView(
+                        icon = leadingGlyph,
+                        size = 18.dp,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    rest,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                )
+            }
+            if (connectionState == ConnectionState.RECONNECTING) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+            }
+            IconButton(onClick = onDisconnect) {
+                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Disconnect")
+            }
+        }
+    }
+}
+
+@Composable
+private fun WaitingForView(state: ConnectionState) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        CircularProgressIndicator()
+        Spacer(Modifier.size(12.dp))
+        Text(
+            when (state) {
+                ConnectionState.CONNECTING -> "Connecting…"
+                ConnectionState.RECONNECTING -> "Reconnecting…"
+                else -> "Waiting for the device's first view frame."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+

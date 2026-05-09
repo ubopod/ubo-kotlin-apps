@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme is supplied at the Compose level via UboTheme. The base style
+         here exists so AndroidManifest's android:theme reference resolves. -->
+    <style name="Theme.UboApp" parent="android:Theme.Material.NoActionBar" />
+</resources>
