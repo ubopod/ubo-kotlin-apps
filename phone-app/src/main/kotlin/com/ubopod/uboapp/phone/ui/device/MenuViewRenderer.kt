@@ -52,15 +52,10 @@ public fun MenuViewRenderer(data: MenuViewData, viewModel: DeviceViewModel) {
             }
         }
 
-        if (data.totalPages > 1) {
-            Text(
-                "Page ${data.pageIndex + 1} of ${data.totalPages}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-        }
-
+        // Pagination is driven server-side now (Swift commit `44c84ab`);
+        // the page chip used to live here but only added noise — the
+        // device already shows its own pagination indicator and the
+        // user can't change it from the client anyway.
         if (data.items.isEmpty()) {
             Text(
                 "No items in this menu.",

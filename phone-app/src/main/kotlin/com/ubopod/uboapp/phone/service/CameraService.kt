@@ -14,6 +14,9 @@ import com.ubopod.ubokotlin.UboError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
@@ -25,14 +28,16 @@ import java.util.concurrent.Executors
  *
  * Mirrors `ubo-swift-app/ubo-swift-app/Services/CameraManager.swift` and
  * `CameraCaptureService.swift`. Each ImageAnalysis frame is encoded as
- * JPEG and dispatched as a `CameraReportImageEvent` over gRPC.
+ * JPEG and dispatched as a `CameraReportImageAction` over gRPC; the
+ * client tags it with `cameraSourceId` so the Pi can route or drop the
+ * frame depending on which source is currently selected in its picker.
  *
  * Lifecycle:
  *   1. Wire `client` and a `LifecycleOwner` via [bind] (called from the
  *      Activity / ComponentActivity that owns the camera UI).
- *   2. Call [start] to begin capture (typically gated on
- *      `client.isCameraViewfinderActive` once `subscribeToCameraEvents`
- *      lands in `:lib`).
+ *   2. Call [start] to begin capture — typically gated on
+ *      `client.isCameraViewfinderActive`, which the [com.ubopod.uboapp.phone.viewmodel.DeviceViewModel]'s
+ *      auto-trigger watches.
  *   3. Call [stop] to release the camera. [unbind] tears down everything.
  *
  * The CameraX use case here is **ImageAnalysis only** (no preview
@@ -41,6 +46,9 @@ import java.util.concurrent.Executors
  */
 public class CameraService(private val context: Context) {
 
+    /** Which camera lens to bind. Switching while [running] re-binds. */
+    public enum class Lens { BACK, FRONT }
+
     private var client: UboClient? = null
     private var lifecycleOwner: LifecycleOwner? = null
     private val analyzerExecutor: Executor = Executors.newSingleThreadExecutor()
@@ -48,6 +56,19 @@ public class CameraService(private val context: Context) {
 
     @Volatile
     private var running: Boolean = false
+
+    private val _lens = MutableStateFlow(Lens.BACK)
+    public val lens: StateFlow<Lens> = _lens.asStateFlow()
+
+    private val _lastError = MutableStateFlow<String?>(null)
+
+    /**
+     * Last user-facing error from camera setup (permission denied, no
+     * camera available, bindToLifecycle failure). Null when last
+     * [start] succeeded. Observed by the dashboard / camera UI to
+     * surface a banner without crashing the ViewModel scope.
+     */
+    public val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     /**
      * Configure the service. Call before [start]; safe to call again to
@@ -70,18 +91,45 @@ public class CameraService(private val context: Context) {
         scope.cancel()
     }
 
+    /**
+     * Switch to a different lens. If a capture session is currently
+     * [running], rebinds CameraX so the new lens takes over without
+     * the caller having to stop / start manually. Otherwise just
+     * records the preference for the next [start].
+     */
+    @MainThread
+    public fun setLens(lens: Lens) {
+        if (_lens.value == lens) return
+        _lens.value = lens
+        if (running) {
+            stop()
+            start()
+        }
+    }
+
     /** Begin streaming frames. No-op if already running or unbound. */
     @MainThread
     public fun start() {
         val owner = lifecycleOwner ?: return
         if (running) return
         running = true
+        _lastError.value = null
         scope.launch {
             val provider = runCatching { ProcessCameraProvider.getInstance(context).await() }
-                .getOrElse {
+                .getOrElse { t ->
                     running = false
+                    _lastError.value = t.message ?: "Could not acquire camera provider"
                     return@launch
                 }
+            val selector = when (_lens.value) {
+                Lens.BACK -> CameraSelector.DEFAULT_BACK_CAMERA
+                Lens.FRONT -> CameraSelector.DEFAULT_FRONT_CAMERA
+            }
+            if (!provider.hasCamera(selector)) {
+                running = false
+                _lastError.value = "Selected camera (${_lens.value}) is unavailable on this device."
+                return@launch
+            }
             val resolution = ResolutionSelector.Builder()
                 .setResolutionStrategy(
                     ResolutionStrategy(
@@ -99,9 +147,10 @@ public class CameraService(private val context: Context) {
 
             try {
                 provider.unbindAll()
-                provider.bindToLifecycle(owner, CameraSelector.DEFAULT_BACK_CAMERA, analysis)
-            } catch (_: Throwable) {
+                provider.bindToLifecycle(owner, selector, analysis)
+            } catch (t: Throwable) {
                 running = false
+                _lastError.value = t.message ?: "Camera bindToLifecycle failed"
             }
         }
     }

@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Required so launchers can list UboTileService in the tile carousel. -->
+    <uses-permission android:name="com.google.android.wearable.permission.BIND_TILE_PROVIDER" />
 
     <application
         android:name=".UboWearApplication"
@@ -29,5 +32,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Tile counterpart to watchOS accessoryCircular/Rectangular/Inline.
+             Reads from `WearStatsStore`, which the wear-app's
+             DeviceViewModel updates on each SystemStats tick. -->
+        <service
+            android:name=".tile.UboTileService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

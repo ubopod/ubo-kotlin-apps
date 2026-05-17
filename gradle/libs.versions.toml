@@ -41,6 +41,12 @@ lifecycleService = "2.8.7"
 wearComposeMaterial = "1.4.0"
 wearComposeFoundation = "1.4.0"
 
+# Wear Tiles + ProtoLayout — counterpart of watchOS accessory
+# complications. UboTileService renders a compact CPU/RAM/Temp tile on
+# the watch's tile carousel without launching the full wear-app.
+wearTiles = "1.4.1"
+wearProtoLayout = "1.2.1"
+
 # Glance (home-screen widget) + WorkManager (periodic refresh).
 # WorkManager pinned just below the version that bumps compileSdk to 35
 # so the rest of the project can stay on compileSdk 34 / Android 14.
@@ -87,6 +93,16 @@ androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", 
 # theme, ScalingLazyColumn, rotary input modifiers, etc.
 wear-compose-material = { module = "androidx.wear.compose:compose-material", version.ref = "wearComposeMaterial" }
 wear-compose-foundation = { module = "androidx.wear.compose:compose-foundation", version.ref = "wearComposeFoundation" }
+
+# Wear Tiles + ProtoLayout — used by UboTileService for the compact
+# tile-carousel surface (watchOS `accessoryCircular` / `Rectangular` /
+# `Inline` parity).
+wear-tiles = { module = "androidx.wear.tiles:tiles", version.ref = "wearTiles" }
+wear-tiles-material = { module = "androidx.wear.tiles:tiles-material", version.ref = "wearTiles" }
+wear-protolayout = { module = "androidx.wear.protolayout:protolayout", version.ref = "wearProtoLayout" }
+wear-protolayout-material = { module = "androidx.wear.protolayout:protolayout-material", version.ref = "wearProtoLayout" }
+wear-protolayout-expression = { module = "androidx.wear.protolayout:protolayout-expression", version.ref = "wearProtoLayout" }
+guava-listenablefuture = { module = "com.google.guava:listenablefuture", version = "9999.0-empty-to-avoid-conflict-with-guava" }
 
 # Glance — Compose-based App Widget framework. The widget composables run
 # in the launcher's process; data is read from a process-safe DataStore.

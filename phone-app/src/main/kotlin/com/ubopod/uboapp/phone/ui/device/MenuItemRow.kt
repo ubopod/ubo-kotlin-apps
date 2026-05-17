@@ -18,8 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.ubopod.uboapp.phone.ui.common.HapticStrength
 import com.ubopod.uboapp.phone.ui.common.IconView
 import com.ubopod.uboapp.phone.ui.common.markupAnnotated
+import com.ubopod.uboapp.phone.ui.common.rememberHaptic
 import com.ubopod.uboapp.phone.ui.common.uboIconColor
 import com.ubopod.ubokotlin.models.MenuItemData
 
@@ -34,8 +36,12 @@ import com.ubopod.ubokotlin.models.MenuItemData
  */
 @Composable
 internal fun MenuItemRow(item: MenuItemData, onTap: () -> Unit) {
+    val haptic = rememberHaptic()
     Card(
-        onClick = onTap,
+        onClick = {
+            haptic(HapticStrength.LIGHT)
+            onTap()
+        },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(0.dp),
         modifier = Modifier.fillMaxWidth(),

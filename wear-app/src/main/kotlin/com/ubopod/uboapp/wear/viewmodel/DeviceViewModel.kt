@@ -7,31 +7,43 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.wear.tiles.TileService
+import com.ubopod.uboapp.wear.service.WatchAudioPlaybackService
+import com.ubopod.uboapp.wear.service.WatchMicCaptureService
 import com.ubopod.uboapp.wear.storage.UboWearSettings
+import com.ubopod.uboapp.wear.tile.UboTileService
+import com.ubopod.uboapp.wear.tile.WearStatsStore
 import com.ubopod.ubokotlin.UboClient
 import com.ubopod.ubokotlin.connection.ConnectionState
+import com.ubopod.ubokotlin.models.PlaybackEvent
 import com.ubopod.ubokotlin.models.StatusBarData
 import com.ubopod.ubokotlin.models.SystemStats
 import com.ubopod.ubokotlin.models.ViewData
 import com.ubopod.ubokotlin.models.WebUIInputDescription
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
- * Slim ViewModel for the wear app — same gRPC plumbing as the phone-app
- * counterpart, minus the camera / mic / audio-playback hardware
- * services. Mirrors the watchOS `DeviceViewModel.swift` (no
- * `cameraManager`, no `micCapture`, no `audioPlayback`).
+ * Wear ViewModel — mirrors the watchOS `DeviceViewModel.swift` after the
+ * push-to-talk + playback parity patches (commits `56d17e1`, `af27935`,
+ * `4a02f40`). The phone-app's CameraSourceRegistrar / CameraService are
+ * intentionally omitted; the watch has no camera.
  */
 public class DeviceViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Default UboClient scope (SupervisorJob + Dispatchers.Default) keeps
-    // subscription work off the Main thread. onCleared → client.close()
-    // cancels it.
     public val client: UboClient = UboClient()
     private val settings = UboWearSettings(application)
+
+    public val micCapture: WatchMicCaptureService = WatchMicCaptureService()
+    public val audioPlayback: WatchAudioPlaybackService = WatchAudioPlaybackService()
+
+    private val _isMicCapturing = MutableStateFlow(false)
+    public val isMicCapturing: StateFlow<Boolean> = _isMicCapturing.asStateFlow()
 
     public val connectionState: StateFlow<ConnectionState> = client.connectionState
     public val currentView: StateFlow<ViewData?> = client.currentView
@@ -44,15 +56,104 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
     public val savedPort: StateFlow<Int> = settings.savedPort
         .stateIn(viewModelScope, SharingStarted.Eagerly, UboWearSettings.DEFAULT_PORT)
 
+    init {
+        // Throttled (5 s) write of SystemStats to the wear-local DataStore
+        // that [UboTileService] reads. Tile refresh is pushed after each
+        // write so the carousel reflects what the connected app sees.
+        viewModelScope.launch {
+            var lastPushedAt = 0L
+            client.systemStats.collect { stats ->
+                val now = System.currentTimeMillis()
+                if (now - lastPushedAt < 5_000L) return@collect
+                lastPushedAt = now
+                val host = settings.savedHost.first()
+                WearStatsStore.save(application, stats, host, client.connectionState.value.isConnected)
+                runCatching {
+                    TileService.getUpdater(application).requestUpdate(UboTileService::class.java)
+                }
+            }
+        }
+        viewModelScope.launch {
+            client.connectionState.collect {
+                val host = settings.savedHost.first()
+                WearStatsStore.save(application, client.systemStats.value, host, it.isConnected)
+                runCatching {
+                    TileService.getUpdater(application).requestUpdate(UboTileService::class.java)
+                }
+            }
+        }
+    }
+
+    public val isConnected: StateFlow<Boolean> = client.connectionState
+        .let { source ->
+            MutableStateFlow(source.value.isConnected).also { mirror ->
+                viewModelScope.launch { source.collect { mirror.value = it.isConnected } }
+            }.asStateFlow()
+        }
+
     public suspend fun connect(host: String, port: Int) {
         settings.setHost(host)
         settings.setPort(port)
         client.connect(host, port)
         client.startViewSubscription()
+        client.startStatsSubscription()
+        client.startInputsSubscription()
+        micCapture.bind(client)
+        audioPlayback.bind(client)
+        audioPlayback.start()
+        startPlaybackForwarding()
     }
 
     public suspend fun disconnect() {
+        stopMicCapture()
+        client.stopPlaybackSubscription()
+        audioPlayback.stop()
         client.disconnect()
+    }
+
+    public fun triggerConnect(host: String, port: Int) {
+        viewModelScope.launch { runCatching { connect(host, port) } }
+    }
+
+    public fun triggerDisconnect() {
+        viewModelScope.launch { disconnect() }
+    }
+
+    public fun startMicCapture() {
+        micCapture.start()
+        _isMicCapturing.value = micCapture.isRunning
+    }
+
+    public fun stopMicCapture() {
+        micCapture.stop()
+        _isMicCapturing.value = false
+    }
+
+    public suspend fun toggleMicCapture() {
+        if (micCapture.isRunning) {
+            micCapture.stop()
+            _isMicCapturing.value = false
+            runCatching { client.stopAssistantListening() }
+        } else {
+            runCatching { client.startAssistantListening() }
+            micCapture.start()
+            _isMicCapturing.value = micCapture.isRunning
+        }
+    }
+
+    private fun startPlaybackForwarding() {
+        client.startPlaybackSubscription { event ->
+            when (event) {
+                is PlaybackEvent.Sample -> audioPlayback.play(event.sample, event.volume)
+                is PlaybackEvent.Sequence -> audioPlayback.enqueueSequenceChunk(
+                    sequenceId = event.id,
+                    index = event.index,
+                    sample = event.sample,
+                    volume = event.volume,
+                )
+                PlaybackEvent.Stop -> audioPlayback.stop()
+            }
+        }
     }
 
     public suspend fun connectWithSavedSettings(): Boolean {
@@ -65,6 +166,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
 
     override fun onCleared() {
         super.onCleared()
+        micCapture.unbind()
+        audioPlayback.unbind()
         client.close()
     }
 

@@ -32,17 +32,27 @@ import com.ubopod.ubokotlin.models.ViewData
 public fun WatchDeviceScreen(viewModel: DeviceViewModel) {
     val view by viewModel.currentView.collectAsStateWithLifecycle()
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
+    val statusBar by viewModel.statusBar.collectAsStateWithLifecycle()
+    val stats by viewModel.systemStats.collectAsStateWithLifecycle()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (val v = view) {
-            is ViewData.Home -> WatchHomeRenderer(v.data, viewModel)
-            is ViewData.Menu -> WatchMenuRenderer(v.data, viewModel)
-            is ViewData.Notification -> WatchNotificationRenderer(v.data, viewModel)
-            is ViewData.Application -> WatchApplicationRenderer(v.data, viewModel)
-            is ViewData.Instruction -> WatchInstructionRenderer(v.data, viewModel)
-            is ViewData.Prompt -> WatchPromptRenderer(v.data, viewModel)
-            is ViewData.Render -> WatchRenderRenderer(v.data, viewModel)
-            null -> WaitingForView(state)
+    Column(modifier = Modifier.fillMaxSize()) {
+        WatchStatusBarOverlay(
+            bar = statusBar,
+            cpuPercent = stats?.cpuPercent ?: 0f,
+            ramPercent = stats?.ramPercent ?: 0f,
+            temperature = stats?.temperature,
+        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            when (val v = view) {
+                is ViewData.Home -> WatchHomeRenderer(v.data, viewModel)
+                is ViewData.Menu -> WatchMenuRenderer(v.data, viewModel)
+                is ViewData.Notification -> WatchNotificationRenderer(v.data, viewModel)
+                is ViewData.Application -> WatchApplicationRenderer(v.data, viewModel)
+                is ViewData.Instruction -> WatchInstructionRenderer(v.data, viewModel)
+                is ViewData.Prompt -> WatchPromptRenderer(v.data, viewModel)
+                is ViewData.Render -> WatchRenderRenderer(v.data, viewModel)
+                null -> WaitingForView(state)
+            }
         }
     }
 }

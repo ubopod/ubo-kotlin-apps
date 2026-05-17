@@ -57,7 +57,18 @@ public fun WatchHomeRenderer(data: HomeViewData, viewModel: DeviceViewModel) {
             items(data.menuItems) { item ->
                 MenuChip(item) {
                     scope.launch {
-                        runCatching { viewModel.client.selectMenuItem(label = item.label) }
+                        runCatching {
+                            // Home items can be icon-only on the Pi
+                            // panel — prefer icon-based dispatch so
+                            // entries like Notifications / Power
+                            // resolve correctly (mirrors the phone-app
+                            // HomeViewRenderer + Swift WatchHomeView).
+                            if (item.icon.isNotEmpty()) {
+                                viewModel.client.selectMenuItemByIcon(item.icon)
+                            } else {
+                                viewModel.client.selectMenuItem(label = item.label)
+                            }
+                        }
                     }
                 }
             }

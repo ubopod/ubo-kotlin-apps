@@ -11,6 +11,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import com.ubopod.uboapp.phone.service.AudioPlaybackService
 import com.ubopod.uboapp.phone.service.CameraService
+import com.ubopod.uboapp.phone.service.CameraSourceRegistrar
 import com.ubopod.uboapp.phone.service.MicCaptureService
 import com.ubopod.uboapp.phone.storage.UboSettings
 import com.ubopod.uboapp.widget.SharedSystemStats
@@ -62,6 +63,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
     public val cameraService: CameraService = CameraService(application)
     public val micCapture: MicCaptureService = MicCaptureService()
     public val audioPlayback: AudioPlaybackService = AudioPlaybackService()
+    private val cameraSourceRegistrar: CameraSourceRegistrar =
+        CameraSourceRegistrar(settings, client, viewModelScope)
 
     private val _isMicCapturing = MutableStateFlow(false)
     public val isMicCapturing: StateFlow<Boolean> = _isMicCapturing.asStateFlow()
@@ -152,6 +155,13 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         client.startStatsSubscription()
         client.startInputsSubscription()
         client.startCameraSubscription()
+        // Register as a remote camera source so the Pi's camera picker
+        // lists this phone alongside its local USB / picamera entries.
+        // bind() also wires re-registration in response to the Pi's
+        // "detect cameras" event so a fresh device sees us without the
+        // user touching anything on this side.
+        cameraSourceRegistrar.bind()
+        runCatching { cameraSourceRegistrar.register() }
         micCapture.bind(client)
         audioPlayback.bind(client)
         audioPlayback.start()
@@ -196,7 +206,12 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
                 is com.ubopod.ubokotlin.models.PlaybackEvent.Sample ->
                     audioPlayback.play(event.sample, event.volume)
                 is com.ubopod.ubokotlin.models.PlaybackEvent.Sequence ->
-                    event.sample?.let { audioPlayback.play(it, event.volume) }
+                    audioPlayback.enqueueSequenceChunk(
+                        sequenceId = event.id,
+                        index = event.index,
+                        sample = event.sample,
+                        volume = event.volume,
+                    )
                 com.ubopod.ubokotlin.models.PlaybackEvent.Stop -> audioPlayback.stop()
             }
         }
@@ -205,6 +220,7 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
     public suspend fun disconnect() {
         cameraAutoJob?.cancel()
         cameraAutoJob = null
+        cameraSourceRegistrar.unbind()
         client.stopPlaybackSubscription()
         stopMicCapture()
         cameraService.stop()

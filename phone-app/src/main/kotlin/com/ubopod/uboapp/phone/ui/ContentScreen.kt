@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.SettingsRemote
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,13 +25,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ubopod.uboapp.phone.ui.connection.ConnectionScreen
+import com.ubopod.uboapp.phone.ui.controls.QuickActionsView
 import com.ubopod.uboapp.phone.ui.dashboard.DashboardScreen
 import com.ubopod.uboapp.phone.ui.device.DeviceScreen
 import com.ubopod.uboapp.phone.ui.inputs.InputFormSheet
 import com.ubopod.uboapp.phone.ui.onboarding.OnboardingScreen
+import com.ubopod.uboapp.phone.ui.settings.DeviceSettingsScreen
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
 
@@ -73,9 +78,11 @@ private fun ConnectingScreen() {
     }
 }
 
-private enum class ConnectedTab(val label: String) {
-    DASHBOARD("Dashboard"),
-    DEVICE("Device"),
+private enum class ConnectedTab(val label: String, val icon: ImageVector) {
+    DEVICE("Device", Icons.Filled.Smartphone),
+    DASHBOARD("Dashboard", Icons.Filled.Dashboard),
+    QUICK("Actions", Icons.Filled.Bolt),
+    SETTINGS("Settings", Icons.Filled.Settings),
 }
 
 @Composable
@@ -85,25 +92,23 @@ private fun ConnectedShell(viewModel: DeviceViewModel) {
     Scaffold(
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(
-                    selected = tab == ConnectedTab.DASHBOARD,
-                    onClick = { tab = ConnectedTab.DASHBOARD },
-                    icon = { Icon(Icons.Filled.Dashboard, contentDescription = null) },
-                    label = { Text(ConnectedTab.DASHBOARD.label) },
-                )
-                NavigationBarItem(
-                    selected = tab == ConnectedTab.DEVICE,
-                    onClick = { tab = ConnectedTab.DEVICE },
-                    icon = { Icon(Icons.Filled.SettingsRemote, contentDescription = null) },
-                    label = { Text(ConnectedTab.DEVICE.label) },
-                )
+                ConnectedTab.entries.forEach { entry ->
+                    NavigationBarItem(
+                        selected = tab == entry,
+                        onClick = { tab = entry },
+                        icon = { Icon(entry.icon, contentDescription = null) },
+                        label = { Text(entry.label) },
+                    )
+                }
             }
         },
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             when (tab) {
-                ConnectedTab.DASHBOARD -> DashboardScreen(viewModel)
                 ConnectedTab.DEVICE -> DeviceScreen(viewModel)
+                ConnectedTab.DASHBOARD -> DashboardScreen(viewModel)
+                ConnectedTab.QUICK -> QuickActionsView(viewModel)
+                ConnectedTab.SETTINGS -> DeviceSettingsScreen(viewModel)
             }
         }
     }

@@ -26,6 +26,14 @@ public class UboSettings(private val context: Context) {
     public val hasCompletedOnboarding: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_ONBOARDED] ?: false }
 
+    /**
+     * Stable per-install id used by [com.ubopod.uboapp.phone.service.CameraSourceRegistrar]
+     * to register this phone as a remote camera source. Empty until
+     * [getOrCreateCameraSourceId] is called the first time.
+     */
+    public val cameraSourceId: Flow<String> = context.dataStore.data
+        .map { it[KEY_CAMERA_SOURCE_ID].orEmpty() }
+
     public suspend fun setHost(host: String) {
         context.dataStore.edit { it[KEY_HOST] = host }
     }
@@ -38,11 +46,30 @@ public class UboSettings(private val context: Context) {
         context.dataStore.edit { it[KEY_ONBOARDED] = true }
     }
 
+    /**
+     * Read the stored camera source id, or generate-and-persist a UUID
+     * on first call. Cheap to invoke; the DataStore call is suspending.
+     */
+    public suspend fun getOrCreateCameraSourceId(): String {
+        var generated: String? = null
+        context.dataStore.edit { prefs ->
+            val existing = prefs[KEY_CAMERA_SOURCE_ID]
+            if (existing.isNullOrEmpty()) {
+                generated = java.util.UUID.randomUUID().toString()
+                prefs[KEY_CAMERA_SOURCE_ID] = generated!!
+            } else {
+                generated = existing
+            }
+        }
+        return generated!!
+    }
+
     public companion object {
         public const val DEFAULT_PORT: Int = 50051
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
         private val KEY_ONBOARDED: Preferences.Key<Boolean> = booleanPreferencesKey("has_completed_onboarding")
+        private val KEY_CAMERA_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("camera_source_id")
     }
 }
 

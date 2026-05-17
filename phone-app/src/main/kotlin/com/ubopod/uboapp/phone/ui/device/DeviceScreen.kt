@@ -27,8 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ubopod.uboapp.phone.ui.common.HapticStrength
 import com.ubopod.uboapp.phone.ui.common.IconView
+import com.ubopod.uboapp.phone.ui.common.rememberHaptic
 import com.ubopod.uboapp.phone.ui.common.splitLeadingGlyph
+import com.ubopod.uboapp.phone.ui.controls.StatusBarOverlay
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
 import com.ubopod.ubokotlin.models.ViewData
@@ -46,6 +49,7 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
     val view by viewModel.currentView.collectAsStateWithLifecycle()
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
     val statusBar by viewModel.statusBar.collectAsStateWithLifecycle()
+    val systemStats by viewModel.systemStats.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     // No safeDrawingPadding here — `ConnectedShell`'s Scaffold already
@@ -65,6 +69,17 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
             // Disconnect routes the screen away → use the ViewModel-scoped
             // helper so the suspending shutdown survives composition swap.
             onDisconnect = { viewModel.triggerDisconnect() },
+        )
+        Spacer(Modifier.size(4.dp))
+        // Mirror the Pi-side status bar so users have parity context.
+        // Pulls CPU/RAM/temperature out of `systemStats`; everything
+        // else (recording indicators, progress notifications, icons,
+        // clock) comes straight from the Pi's `StatusBarData`.
+        StatusBarOverlay(
+            bar = statusBar,
+            cpuPercent = systemStats?.cpuPercent ?: 0f,
+            ramPercent = systemStats?.ramPercent ?: 0f,
+            temperature = systemStats?.temperature,
         )
         Spacer(Modifier.size(8.dp))
 
@@ -90,6 +105,7 @@ private fun DeviceTopBar(
     onBack: () -> Unit,
     onDisconnect: () -> Unit,
 ) {
+    val haptic = rememberHaptic()
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
@@ -99,7 +115,10 @@ private fun DeviceTopBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = {
+                haptic(HapticStrength.LIGHT)
+                onBack()
+            }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
             // Status-bar titles often start with a Nerd-Font PUA glyph
@@ -131,7 +150,10 @@ private fun DeviceTopBar(
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             }
-            IconButton(onClick = onDisconnect) {
+            IconButton(onClick = {
+                haptic(HapticStrength.MEDIUM)
+                onDisconnect()
+            }) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Disconnect")
             }
         }

@@ -8,7 +8,9 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -29,44 +31,117 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 
 /**
- * Compose-Glance based home-screen widget surfacing the latest
- * [SharedSystemStats] from the phone-app.
+ * Compose-Glance based home-screen widget rendering [SharedSystemStats]
+ * from the phone-app. Uses [SizeMode.Responsive] to pick one of three
+ * layouts based on the launcher slot — Small (2x2), Medium (4x2),
+ * Large (4x4) — mirroring the watchOS WidgetKit's three system sizes.
  *
- * Mirrors `ubo-swift-app/UboWidgets/UboWidgets.swift`. Single responsive
- * layout for now; the iOS counterpart ships six surfaces — we'll grow
- * this widget if/when the launchers ask for distinct accessory layouts.
+ * Mirrors `ubo-swift-app/UboWidgets/UboWidgets.swift` (`.systemSmall`,
+ * `.systemMedium`, `.systemLarge`).
  */
 public class UboGlanceAppWidget : GlanceAppWidget() {
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(SMALL_SIZE, MEDIUM_SIZE, LARGE_SIZE),
+    )
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val stats = WidgetDataStore.load(context)
         provideContent {
             UboWidgetContent(stats)
         }
     }
+
+    public companion object {
+        public val SMALL_SIZE: androidx.compose.ui.unit.DpSize =
+            androidx.compose.ui.unit.DpSize(120.dp, 120.dp)
+        public val MEDIUM_SIZE: androidx.compose.ui.unit.DpSize =
+            androidx.compose.ui.unit.DpSize(240.dp, 120.dp)
+        public val LARGE_SIZE: androidx.compose.ui.unit.DpSize =
+            androidx.compose.ui.unit.DpSize(240.dp, 240.dp)
+    }
 }
 
 @Composable
 private fun UboWidgetContent(stats: SharedSystemStats) {
+    val size = LocalSize.current
     GlanceTheme {
-        Column(
+        Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .padding(12.dp)
                 .cornerRadius(20.dp)
-                .background(ColorProvider(Color(0xFF161616), Color(0xFF161616))),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .background(ColorProvider(Color(0xFF161616), Color(0xFF161616)))
+                .padding(12.dp),
         ) {
-            HeaderRow(stats)
-            Spacer(modifier = GlanceModifier.height(8.dp))
-            StatsRow(stats)
-            if (stats.isStale) {
-                Spacer(modifier = GlanceModifier.height(6.dp))
-                Text(
-                    text = "stale — phone may be offline",
-                    style = TextStyle(color = TextSecondary, fontSize = 10.sp),
-                )
+            when {
+                size.width < 200.dp -> SmallLayout(stats)
+                size.height < 200.dp -> MediumLayout(stats)
+                else -> LargeLayout(stats)
             }
+        }
+    }
+}
+
+@Composable
+private fun SmallLayout(stats: SharedSystemStats) {
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StatusDot(stats.isConnected)
+            Spacer(modifier = GlanceModifier.width(6.dp))
+            Text(
+                text = stats.deviceHost.ifEmpty { "Ubo" },
+                style = TextStyle(color = textPrimary(stats), fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+            )
+        }
+        Spacer(modifier = GlanceModifier.height(6.dp))
+        StatTile(label = "CPU", percent = stats.cpuPercent, stale = stats.isStale)
+        Spacer(modifier = GlanceModifier.height(4.dp))
+        StatTile(label = "RAM", percent = stats.ramPercent, stale = stats.isStale)
+    }
+}
+
+@Composable
+private fun MediumLayout(stats: SharedSystemStats) {
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        HeaderRow(stats)
+        Spacer(modifier = GlanceModifier.height(8.dp))
+        Row(
+            modifier = GlanceModifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StatTile(label = "CPU", percent = stats.cpuPercent, stale = stats.isStale, modifier = GlanceModifier.defaultWeight())
+            Spacer(modifier = GlanceModifier.width(8.dp))
+            StatTile(label = "RAM", percent = stats.ramPercent, stale = stats.isStale, modifier = GlanceModifier.defaultWeight())
+        }
+        if (stats.isStale) {
+            Spacer(modifier = GlanceModifier.height(6.dp))
+            StaleHint()
+        }
+    }
+}
+
+@Composable
+private fun LargeLayout(stats: SharedSystemStats) {
+    Column(modifier = GlanceModifier.fillMaxSize()) {
+        HeaderRow(stats)
+        Spacer(modifier = GlanceModifier.height(12.dp))
+        StatTile(label = "CPU", percent = stats.cpuPercent, stale = stats.isStale, modifier = GlanceModifier.fillMaxWidth(), large = true)
+        Spacer(modifier = GlanceModifier.height(8.dp))
+        StatTile(label = "RAM", percent = stats.ramPercent, stale = stats.isStale, modifier = GlanceModifier.fillMaxWidth(), large = true)
+        stats.temperature?.let {
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            StatTile(label = "Temp", percent = it, stale = stats.isStale, modifier = GlanceModifier.fillMaxWidth(), large = true, suffix = "°C")
+        }
+        if (stats.isStale) {
+            Spacer(modifier = GlanceModifier.height(8.dp))
+            StaleHint()
         }
     }
 }
@@ -77,12 +152,12 @@ private fun HeaderRow(stats: SharedSystemStats) {
         modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatusDot(connected = stats.isConnected)
+        StatusDot(stats.isConnected)
         Spacer(modifier = GlanceModifier.width(8.dp))
         Column(modifier = GlanceModifier.defaultWeight()) {
             Text(
                 text = stats.deviceHost.ifEmpty { "Ubo" },
-                style = TextStyle(color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                style = TextStyle(color = textPrimary(stats), fontSize = 13.sp, fontWeight = FontWeight.Medium),
                 maxLines = 1,
             )
             Text(
@@ -94,41 +169,42 @@ private fun HeaderRow(stats: SharedSystemStats) {
         stats.temperature?.let {
             Text(
                 text = "${it.toInt()}°C",
-                style = TextStyle(color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium),
+                style = TextStyle(color = textPrimary(stats), fontSize = 12.sp, fontWeight = FontWeight.Medium),
             )
         }
     }
 }
 
 @Composable
-private fun StatsRow(stats: SharedSystemStats) {
-    Row(
-        modifier = GlanceModifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StatTile(label = "CPU", percent = stats.cpuPercent, modifier = GlanceModifier.defaultWeight())
-        Spacer(modifier = GlanceModifier.width(8.dp))
-        StatTile(label = "RAM", percent = stats.ramPercent, modifier = GlanceModifier.defaultWeight())
-    }
-}
-
-@Composable
-private fun StatTile(label: String, percent: Float, modifier: GlanceModifier = GlanceModifier) {
+private fun StatTile(
+    label: String,
+    percent: Float,
+    stale: Boolean,
+    modifier: GlanceModifier = GlanceModifier,
+    large: Boolean = false,
+    suffix: String = "%",
+) {
+    val accent = if (stale) ColorProvider(Color(0xFF4A4A4A), Color(0xFF4A4A4A))
+                 else gaugeAccent(percent)
     Box(
         modifier = modifier
-            .padding(10.dp)
+            .padding(if (large) 14.dp else 10.dp)
             .cornerRadius(14.dp)
-            .background(ColorProvider(Color(0xFF1F1F1F), Color(0xFF1F1F1F))),
+            .background(accent),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = "${percent.toInt()}%",
-                style = TextStyle(color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold),
+                text = "${percent.toInt()}${suffix}",
+                style = TextStyle(
+                    color = TextPrimary,
+                    fontSize = if (large) 28.sp else 18.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
             )
             Text(
                 text = label,
-                style = TextStyle(color = TextSecondary, fontSize = 10.sp),
+                style = TextStyle(color = TextSecondary, fontSize = if (large) 11.sp else 10.sp),
             )
         }
     }
@@ -148,6 +224,26 @@ private fun StatusDot(connected: Boolean) {
             ),
     ) {}
 }
+
+@Composable
+private fun StaleHint() {
+    Text(
+        text = "stale — phone may be offline",
+        style = TextStyle(color = TextSecondary, fontSize = 10.sp),
+    )
+}
+
+private fun gaugeAccent(percent: Float) = run {
+    val color = when {
+        percent >= 85f -> Color(0xFFCC4040) // red
+        percent >= 65f -> Color(0xFFB07A20) // amber
+        else -> Color(0xFF1F1F1F) // neutral
+    }
+    ColorProvider(color, color)
+}
+
+private fun textPrimary(stats: SharedSystemStats) =
+    if (stats.isStale) TextSecondary else TextPrimary
 
 private val TextPrimary = ColorProvider(Color(0xFFFFFFFF), Color(0xFFFFFFFF))
 private val TextSecondary = ColorProvider(Color(0xFFB0B0B0), Color(0xFFB0B0B0))

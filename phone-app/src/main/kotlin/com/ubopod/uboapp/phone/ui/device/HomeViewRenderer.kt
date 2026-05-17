@@ -62,7 +62,23 @@ public fun HomeViewRenderer(data: HomeViewData, viewModel: DeviceViewModel) {
                 items(data.menuItems) { item ->
                     MenuItemRow(item) {
                         scope.launch {
-                            runCatching { viewModel.client.selectMenuItem(label = item.label) }
+                            runCatching {
+                                // Home-view items often have empty or
+                                // non-unique labels (the row is icon-only
+                                // on the Pi panel), so MenuChooseByLabel
+                                // can't resolve "Notifications" or
+                                // "Power" — the action no-ops and the
+                                // home view stays put, which looks like
+                                // "went back to main menu" to the user.
+                                // Prefer icon-based dispatch when an
+                                // icon is present, matching the Swift
+                                // port's DeviceView.swift:181-188.
+                                if (item.icon.isNotEmpty()) {
+                                    viewModel.client.selectMenuItemByIcon(item.icon)
+                                } else {
+                                    viewModel.client.selectMenuItem(label = item.label)
+                                }
+                            }
                         }
                     }
                     if (item != data.menuItems.last()) {

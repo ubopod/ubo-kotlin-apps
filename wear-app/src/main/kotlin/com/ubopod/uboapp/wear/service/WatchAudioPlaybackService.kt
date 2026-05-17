@@ -1,4 +1,4 @@
-package com.ubopod.uboapp.phone.service
+package com.ubopod.uboapp.wear.service
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -14,31 +14,18 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 /**
- * `AudioTrack`-backed PCM playback service.
- *
- * Mirrors `ubo-swift-app/ubo-swift-app/Services/AudioPlaybackService.swift`.
- * Routes the Pi's playback event stream — one-shot samples and ordered
- * sequence chunks — through the system audio output.
- *
- * Thread safety: every AudioTrack mutation ([start], [play], [stop])
- * runs on a single-thread coroutine dispatcher so writes cannot race
- * against a release. AudioTrack write/release across threads is
- * undefined and crashes natively with SIGSEGV when it loses, so the
- * single-thread serialisation is load-bearing — see the in-line
- * comment on [trackDispatcher].
+ * Wear counterpart of the phone-app's `AudioPlaybackService`. Same
+ * single-thread-dispatcher pattern: all AudioTrack mutations
+ * (open / write / release) serialise so cross-thread writes can't race
+ * against a release and crash natively. See the phone-app docstring
+ * for the full rationale.
  */
-public class AudioPlaybackService {
+public class WatchAudioPlaybackService {
 
     @Suppress("unused")
     private var client: UboClient? = null
-
-    // All track-touching coroutines run here so start / write / stop
-    // serialise via the executor's FIFO queue. Multi-threaded access to
-    // AudioTrack is unsafe in native land — Android writes the buffer
-    // pointer, then a release frees the buffer, and a concurrent write
-    // dereferences the freed pointer. Single-thread closes the race.
     private val trackDispatcher = Executors.newSingleThreadExecutor { r ->
-        Thread(r, "UboAudioPlayback")
+        Thread(r, "UboWatchAudioPlayback")
     }.asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + trackDispatcher)
     private var track: AudioTrack? = null
@@ -54,18 +41,10 @@ public class AudioPlaybackService {
         trackDispatcher.close()
     }
 
-    /**
-     * Open the AudioTrack at [sampleRate] Hz / [channels] channel(s) /
-     * 16-bit PCM. Must be called once before the first [play]. Re-call
-     * with different parameters re-opens the track.
-     *
-     * Fire-and-forget — the actual open runs on [trackDispatcher].
-     */
     public fun start(sampleRate: Int = 16_000, channels: Int = 1) {
         scope.launch { openLocked(sampleRate, channels) }
     }
 
-    /** Push a single PCM sample at the device's nominal volume. */
     public fun play(sample: AudioSampleData, volume: Float = 1f) {
         scope.launch {
             val current = track
@@ -75,31 +54,14 @@ public class AudioPlaybackService {
             val live = track ?: return@launch
             try {
                 live.setVolume(volume.coerceIn(0f, 1f))
-                // write blocks until the buffer is drained; running on
-                // the single-thread dispatcher means stop() can't race
-                // here mid-call (it queues behind us).
                 live.write(sample.data, 0, sample.data.size)
             } catch (_: IllegalStateException) {
-                // Track was released or reconfigured between our null
-                // check and the write — drop the sample, the next one
-                // will reopen via the rate-mismatch path above.
+                // Track was released or reconfigured mid-call — drop
+                // this sample, the next one will reopen the track.
             }
         }
     }
 
-    /**
-     * Enqueue a chunk of a multi-part audio sequence (TTS, file playback).
-     *
-     * The Pi may dispatch sequence chunks out-of-order; this buffer keeps
-     * them keyed by `(sequenceId, index)` so they replay in the order
-     * the device intended, regardless of network arrival order. Once the
-     * next-expected index is present the buffer is drained as far as it
-     * can be, then idle slots wait for the missing chunk. Calling [stop]
-     * (or receiving a `PlaybackEvent.Stop`) flushes every pending slot
-     * so a fresh sequence doesn't replay stale data.
-     *
-     * Mirrors Swift `AudioPlaybackService.handleSequenceChunk(...)`.
-     */
     public fun enqueueSequenceChunk(
         sequenceId: String,
         index: Int,
@@ -117,7 +79,6 @@ public class AudioPlaybackService {
         }
     }
 
-    /** Stop playback and release the track. Safe to call multiple times. */
     public fun stop() {
         scope.launch { closeLocked() }
         synchronized(sequenceLock) { sequenceStates.clear() }
@@ -140,7 +101,6 @@ public class AudioPlaybackService {
             .setChannelMask(channelConfig)
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .build()
-        @Suppress("DEPRECATION") // streamType variant for API 31 minSdk
         track = runCatching {
             AudioTrack(
                 attrs,

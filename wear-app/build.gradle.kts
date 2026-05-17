@@ -77,5 +77,13 @@ dependencies {
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
 
+    // Wear Tile — compact CPU/RAM tile in the watch's tile carousel.
+    implementation(libs.wear.tiles)
+    implementation(libs.wear.tiles.material)
+    implementation(libs.wear.protolayout)
+    implementation(libs.wear.protolayout.material)
+    implementation(libs.wear.protolayout.expression)
+    implementation(libs.coroutines.guava)
+
     debugImplementation(libs.compose.ui.tooling)
 }
