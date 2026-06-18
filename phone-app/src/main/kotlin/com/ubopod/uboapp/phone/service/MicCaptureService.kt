@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.util.Log
 import com.ubopod.ubokotlin.UboClient
 import com.ubopod.ubokotlin.UboError
 import kotlinx.coroutines.CoroutineScope
@@ -60,15 +61,19 @@ public class MicCaptureService {
      */
     @SuppressLint("MissingPermission")
     public fun start(audioSource: String = "") {
-        if (isRunning) return
-        val client = this.client ?: return
+        if (isRunning) { Log.i(TAG, "start ignored — already running"); return }
+        val client = this.client ?: run { Log.e(TAG, "start aborted — no client bound"); return }
         this.audioSource = audioSource
+        Log.i(TAG, "start requested (audioSource=$audioSource)")
 
         val sampleRate = SAMPLE_RATE_HZ
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
         val encoding = AudioFormat.ENCODING_PCM_16BIT
         val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelConfig, encoding)
-        if (minBuffer == AudioRecord.ERROR || minBuffer == AudioRecord.ERROR_BAD_VALUE) return
+        if (minBuffer == AudioRecord.ERROR || minBuffer == AudioRecord.ERROR_BAD_VALUE) {
+            Log.e(TAG, "start aborted — getMinBufferSize returned $minBuffer")
+            return
+        }
 
         // Buffer twice the minimum so we don't drop frames under load. Each
         // emission still carries CHUNK_FRAMES samples (≈16 ms at 16 kHz).
@@ -81,24 +86,38 @@ public class MicCaptureService {
                 encoding,
                 bufferSize,
             )
-        } catch (_: SecurityException) {
+        } catch (e: SecurityException) {
+            Log.e(TAG, "start aborted — AudioRecord SecurityException (mic permission?)", e)
             return
-        } catch (_: IllegalArgumentException) {
+        } catch (e: IllegalArgumentException) {
+            Log.e(TAG, "start aborted — AudioRecord IllegalArgumentException", e)
             return
         }
         if (ar.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "start aborted — AudioRecord not initialized (state=${ar.state})")
             ar.release()
             return
         }
         record = ar
         ar.startRecording()
+        Log.i(TAG, "AudioRecord recording (minBuffer=$minBuffer, recordingState=${ar.recordingState})")
 
         captureJob = scope.launch {
             val buffer = ByteArray(CHUNK_FRAMES * 2) // PCM16 → 2 bytes per frame
-            var startedAt = System.nanoTime()
+            val startedAt = System.nanoTime()
+            var reads = 0
+            var sent = 0
+            var silentReads = 0
             while (isActive) {
                 val read = withContext(Dispatchers.IO) { ar.read(buffer, 0, buffer.size) }
-                if (read <= 0) continue
+                if (read <= 0) {
+                    silentReads++
+                    if (silentReads == 1 || silentReads % 100 == 0) {
+                        Log.w(TAG, "ar.read returned $read (silentReads=$silentReads) — no audio from mic")
+                    }
+                    continue
+                }
+                reads++
                 val timestamp = (System.nanoTime() - startedAt).toFloat() / 1_000_000_000f
                 val payload = if (read == buffer.size) buffer.copyOf() else buffer.copyOf(read)
                 runCatching {
@@ -110,10 +129,17 @@ public class MicCaptureService {
                         width = 2,
                         audioSource = audioSource,
                     )
+                    sent++
+                    if (sent == 1) Log.i(TAG, "streaming to core (src=$audioSource)")
                 }.onFailure { throwable ->
+                    // Cancellation on stop() surfaces as a dispatch failure
+                    // mid-send — that's expected, not an error.
+                    if (!isActive) return@onFailure
+                    Log.e(TAG, "reportAudioSample failed (sent=$sent): ${throwable.message}", throwable)
                     if (throwable !is UboError) throw throwable
                 }
             }
+            Log.i(TAG, "capture stopped (reads=$reads, sent=$sent, silentReads=$silentReads)")
         }
     }
 
@@ -129,6 +155,7 @@ public class MicCaptureService {
     }
 
     public companion object {
+        private const val TAG = "MicCapture"
         private const val SAMPLE_RATE_HZ = 16_000
         private const val CHUNK_FRAMES = 256
     }
