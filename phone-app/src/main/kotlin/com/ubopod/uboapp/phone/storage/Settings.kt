@@ -64,12 +64,34 @@ public class UboSettings(private val context: Context) {
         return generated!!
     }
 
+    /**
+     * Stable per-install id identifying this phone as a microphone source.
+     * Sent on `startAssistantListening` and every streamed mic sample so the
+     * core binds the listening session to this app's mic and ignores the
+     * device's built-in mic (mirrors the Web UI's `web-ui:` audio source).
+     * Generated and persisted on first call.
+     */
+    public suspend fun getOrCreateAudioSourceId(): String {
+        var generated: String? = null
+        context.dataStore.edit { prefs ->
+            val existing = prefs[KEY_AUDIO_SOURCE_ID]
+            if (existing.isNullOrEmpty()) {
+                generated = "android:${java.util.UUID.randomUUID()}"
+                prefs[KEY_AUDIO_SOURCE_ID] = generated!!
+            } else {
+                generated = existing
+            }
+        }
+        return generated!!
+    }
+
     public companion object {
         public const val DEFAULT_PORT: Int = 50051
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
         private val KEY_ONBOARDED: Preferences.Key<Boolean> = booleanPreferencesKey("has_completed_onboarding")
         private val KEY_CAMERA_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("camera_source_id")
+        private val KEY_AUDIO_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("audio_source_id")
     }
 }
 

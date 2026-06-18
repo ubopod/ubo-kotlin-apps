@@ -31,6 +31,10 @@ public class WatchMicCaptureService {
     private var captureJob: Job? = null
     private var record: AudioRecord? = null
 
+    /** Tags every streamed sample so the core binds the listening session to
+     *  this app's mic and ignores the device's built-in mic. Set at [start]. */
+    private var audioSource: String = ""
+
     public val isRunning: Boolean
         get() = captureJob?.isActive == true
 
@@ -45,9 +49,10 @@ public class WatchMicCaptureService {
     }
 
     @SuppressLint("MissingPermission")
-    public fun start() {
+    public fun start(audioSource: String = "") {
         if (isRunning) return
         val client = this.client ?: return
+        this.audioSource = audioSource
 
         val sampleRate = SAMPLE_RATE_HZ
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -91,6 +96,7 @@ public class WatchMicCaptureService {
                         channels = 1,
                         rate = sampleRate,
                         width = 2,
+                        audioSource = audioSource,
                     )
                 }.onFailure { t -> if (t !is UboError) throw t }
             }

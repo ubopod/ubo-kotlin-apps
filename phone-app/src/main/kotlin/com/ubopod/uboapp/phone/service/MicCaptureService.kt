@@ -35,6 +35,10 @@ public class MicCaptureService {
     private var captureJob: Job? = null
     private var record: AudioRecord? = null
 
+    /** Tags every streamed sample so the core binds the listening session to
+     *  this app's mic and ignores the device's built-in mic. Set at [start]. */
+    private var audioSource: String = ""
+
     public val isRunning: Boolean
         get() = captureJob?.isActive == true
 
@@ -55,9 +59,10 @@ public class MicCaptureService {
      * scope where the `RECORD_AUDIO` permission is granted.
      */
     @SuppressLint("MissingPermission")
-    public fun start() {
+    public fun start(audioSource: String = "") {
         if (isRunning) return
         val client = this.client ?: return
+        this.audioSource = audioSource
 
         val sampleRate = SAMPLE_RATE_HZ
         val channelConfig = AudioFormat.CHANNEL_IN_MONO
@@ -103,6 +108,7 @@ public class MicCaptureService {
                         channels = 1,
                         rate = sampleRate,
                         width = 2,
+                        audioSource = audioSource,
                     )
                 }.onFailure { throwable ->
                     if (throwable !is UboError) throw throwable

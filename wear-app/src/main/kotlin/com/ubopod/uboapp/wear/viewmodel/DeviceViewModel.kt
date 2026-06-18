@@ -135,8 +135,11 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
             _isMicCapturing.value = false
             runCatching { client.stopAssistantListening() }
         } else {
-            runCatching { client.startAssistantListening() }
-            micCapture.start()
+            // Same id on the session and every sample, so the core listens to
+            // this app's mic and drops the device's built-in mic.
+            val source = settings.getOrCreateAudioSourceId()
+            runCatching { client.startAssistantListening(audioSource = source) }
+            micCapture.start(audioSource = source)
             _isMicCapturing.value = micCapture.isRunning
         }
     }
