@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Smartphone
@@ -29,7 +28,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ubopod.uboapp.phone.ui.connection.ConnectionScreen
-import com.ubopod.uboapp.phone.ui.controls.QuickActionsView
 import com.ubopod.uboapp.phone.ui.dashboard.DashboardScreen
 import com.ubopod.uboapp.phone.ui.device.DeviceScreen
 import com.ubopod.uboapp.phone.ui.inputs.InputFormSheet
@@ -81,7 +79,6 @@ private fun ConnectingScreen() {
 private enum class ConnectedTab(val label: String, val icon: ImageVector) {
     DEVICE("Device", Icons.Filled.Smartphone),
     DASHBOARD("Dashboard", Icons.Filled.Dashboard),
-    QUICK("Actions", Icons.Filled.Bolt),
     SETTINGS("Settings", Icons.Filled.Settings),
 }
 
@@ -107,7 +104,6 @@ private fun ConnectedShell(viewModel: DeviceViewModel) {
             when (tab) {
                 ConnectedTab.DEVICE -> DeviceScreen(viewModel)
                 ConnectedTab.DASHBOARD -> DashboardScreen(viewModel)
-                ConnectedTab.QUICK -> QuickActionsView(viewModel)
                 ConnectedTab.SETTINGS -> DeviceSettingsScreen(viewModel)
             }
         }

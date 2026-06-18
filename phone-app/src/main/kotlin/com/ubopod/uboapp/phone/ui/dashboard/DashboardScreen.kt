@@ -1,84 +1,52 @@
 package com.ubopod.uboapp.phone.ui.dashboard
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ubopod.uboapp.phone.ui.controls.QuickActionsView
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
-import kotlinx.coroutines.launch
 
 /**
- * Connected-state dashboard. Shows CPU / RAM / temperature gauges driven
- * by `client.systemStats` plus a push-to-talk button. One-tap device
- * actions live on the Actions tab.
+ * Connected-state dashboard: CPU / RAM / temperature gauges driven by
+ * `client.systemStats`, followed by the one-tap [QuickActionsView] grid.
+ * Push-to-talk lives on the Device tab (so the chat overlay is visible on
+ * the same screen).
  *
- * Mirrors `ubo-swift-app/ubo-swift-app/Views/Dashboard/DashboardView.swift`.
+ * Mirrors `ubo-swift-app/ubo-swift-app/Views/Dashboard/DashboardView.swift`
+ * (gauges + QuickActions in a ScrollView).
  */
 @Composable
 public fun DashboardScreen(viewModel: DeviceViewModel) {
     val stats by viewModel.systemStats.collectAsStateWithLifecycle()
-    val isMicCapturing by viewModel.isMicCapturing.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
-    // Mic permission flow: ask on first toggle; subsequent toggles just
-    // start/stop. The launcher result is consumed exactly once per launch.
-    val micPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        if (granted) scope.launch { viewModel.toggleMicCapture() }
-    }
-    val toggleMic: () -> Unit = {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.RECORD_AUDIO,
-        ) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            scope.launch { viewModel.toggleMicCapture() }
-        } else {
-            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-    }
-
-    // Dashboard sits inside ConnectedShell's Scaffold which already
-    // applies system-bar insets via its innerPadding. No safeDrawingPadding
-    // needed here — see DeviceScreen for the same rationale.
+    // Dashboard sits inside ConnectedShell's Scaffold which already applies
+    // system-bar insets via its innerPadding. Scrollable so the gauges +
+    // action grid fit on shorter screens.
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -134,30 +102,9 @@ public fun DashboardScreen(viewModel: DeviceViewModel) {
             }
         }
 
-        Spacer(Modifier.height(4.dp))
-
-        // Mic toggle — manual entry into the assistant capture flow.
-        // Starting flips on AudioRecord and dispatches
-        // AssistantStartListening; stopping does the inverse.
-        Button(
-            onClick = toggleMic,
-            colors = if (isMicCapturing) {
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            } else {
-                ButtonDefaults.buttonColors()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                if (isMicCapturing) Icons.Filled.MicOff else Icons.Filled.Mic,
-                contentDescription = null,
-            )
-            Spacer(Modifier.size(8.dp))
-            Text(if (isMicCapturing) "Stop listening" else "Push to talk")
-        }
+        // One-tap device actions (chime, LED presets, sleep/wake, assistant,
+        // redraw) — moved here from the former Actions tab.
+        QuickActionsView(viewModel)
     }
 }
 

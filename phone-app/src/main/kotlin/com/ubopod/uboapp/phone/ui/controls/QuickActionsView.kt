@@ -2,16 +2,12 @@ package com.ubopod.uboapp.phone.ui.controls
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
@@ -49,17 +45,20 @@ import kotlinx.coroutines.launch
  * the Settings screen so the slider can bind live to
  * `state.audio.playback_volume`.
  *
- * Mirrors `ubo-swift-app/.../Views/Controls/QuickActionsView.swift`.
+ * Rendered as a non-scrolling section so it can nest inside the Dashboard's
+ * own scroll container (under the gauges), matching
+ * `ubo-swift-app/.../Views/Dashboard/DashboardView.swift` which embeds
+ * `QuickActionsView` in a `ScrollView`. The action grid is laid out as fixed
+ * 3-column rows (no inner LazyVerticalGrid) to avoid nested-scroll conflicts.
  */
 @Composable
 public fun QuickActionsView(viewModel: DeviceViewModel, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val haptic = rememberHaptic()
+    val columns = 3
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
@@ -69,29 +68,31 @@ public fun QuickActionsView(viewModel: DeviceViewModel, modifier: Modifier = Mod
         )
         Spacer(Modifier.height(4.dp))
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 100.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 4.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            items(QuickActions) { action ->
-                ActionTile(action) {
-                    haptic(HapticStrength.LIGHT)
-                    scope.launch { runCatching { action.invoke(viewModel) } }
+        QuickActions.chunked(columns).forEach { rowActions ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                rowActions.forEach { action ->
+                    ActionTile(
+                        action,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        haptic(HapticStrength.LIGHT)
+                        scope.launch { runCatching { action.invoke(viewModel) } }
+                    }
                 }
+                // Pad the last row so tiles keep a consistent width.
+                repeat(columns - rowActions.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
 @Composable
-private fun ActionTile(action: QuickAction, onTap: () -> Unit) {
+private fun ActionTile(action: QuickAction, modifier: Modifier = Modifier, onTap: () -> Unit) {
     Card(
         onClick = onTap,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 8.dp),

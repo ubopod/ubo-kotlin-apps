@@ -1,5 +1,10 @@
 package com.ubopod.uboapp.phone.ui.device
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
@@ -24,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +60,29 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
     val statusBar by viewModel.statusBar.collectAsStateWithLifecycle()
     val systemStats by viewModel.systemStats.collectAsStateWithLifecycle()
+    val isMicCapturing by viewModel.isMicCapturing.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Push-to-talk lives here (not the Dashboard) so the chat overlay the
+    // core opens on listening renders in the content Box on this same screen.
+    // Mic permission flow: ask on first toggle; later toggles just start/stop.
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) scope.launch { viewModel.toggleMicCapture() }
+    }
+    val toggleMic: () -> Unit = {
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            scope.launch { viewModel.toggleMicCapture() }
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     // No safeDrawingPadding here — `ConnectedShell`'s Scaffold already
     // hands us its `innerPadding`, which accounts for the system bars
@@ -95,6 +127,31 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
                 is ViewData.Chat -> ChatViewRenderer(v.data, viewModel)
                 null -> WaitingForView(state)
             }
+        }
+
+        Spacer(Modifier.size(8.dp))
+
+        // Push-to-talk: streams this phone's mic to the assistant. The core
+        // opens the chat view on listening, which renders in the Box above —
+        // so the conversation is visible on this same screen.
+        Button(
+            onClick = toggleMic,
+            colors = if (isMicCapturing) {
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            } else {
+                ButtonDefaults.buttonColors()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                if (isMicCapturing) Icons.Filled.MicOff else Icons.Filled.Mic,
+                contentDescription = null,
+            )
+            Spacer(Modifier.size(8.dp))
+            Text(if (isMicCapturing) "Stop listening" else "Push to talk")
         }
     }
 }
