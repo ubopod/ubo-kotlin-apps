@@ -51,6 +51,7 @@ public fun WatchDeviceScreen(viewModel: DeviceViewModel) {
                 is ViewData.Instruction -> WatchInstructionRenderer(v.data, viewModel)
                 is ViewData.Prompt -> WatchPromptRenderer(v.data, viewModel)
                 is ViewData.Render -> WatchRenderRenderer(v.data, viewModel)
+                is ViewData.Chat -> WatchChatRenderer(v.data, viewModel)
                 null -> WaitingForView(state)
             }
         }

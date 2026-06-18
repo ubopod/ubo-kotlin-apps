@@ -92,6 +92,7 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
                 is ViewData.Instruction -> InstructionViewRenderer(v.data, viewModel)
                 is ViewData.Prompt -> PromptViewRenderer(v.data, viewModel)
                 is ViewData.Render -> RenderViewRenderer(v.data, viewModel)
+                is ViewData.Chat -> ChatViewRenderer(v.data, viewModel)
                 null -> WaitingForView(state)
             }
         }
