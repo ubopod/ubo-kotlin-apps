@@ -88,6 +88,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
     public val savedPort: StateFlow<Int> = settings.savedPort
         .stateIn(viewModelScope, SharingStarted.Eagerly, UboSettings.DEFAULT_PORT)
+    public val savedUseTls: StateFlow<Boolean> = settings.savedUseTls
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
     public val hasCompletedOnboarding: StateFlow<Boolean> = settings.hasCompletedOnboarding
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
@@ -147,10 +149,11 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
      * Starts the view subscription on success; the Composables collect
      * `currentView` to render. Errors propagate to [UboClient.lastError].
      */
-    public suspend fun connect(host: String, port: Int) {
+    public suspend fun connect(host: String, port: Int, useTls: Boolean = false) {
         settings.setHost(host)
         settings.setPort(port)
-        client.connect(host, port)
+        settings.setUseTls(useTls)
+        client.connect(host, port, useTls)
         client.startViewSubscription()
         client.startStatsSubscription()
         client.startInputsSubscription()
@@ -237,9 +240,9 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
      * away from `ConnectionScreen` and any local scope it owned would be
      * cancelled mid-probe with `LeftCompositionCancellationException`.
      */
-    public fun triggerConnect(host: String, port: Int) {
+    public fun triggerConnect(host: String, port: Int, useTls: Boolean = false) {
         viewModelScope.launch {
-            runCatching { connect(host, port) }
+            runCatching { connect(host, port, useTls) }
         }
     }
 
@@ -286,7 +289,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         val host = settings.savedHost.first()
         if (host.isEmpty()) return false
         val port = settings.savedPort.first()
-        connect(host, port)
+        val useTls = settings.savedUseTls.first()
+        connect(host, port, useTls)
         return true
     }
 

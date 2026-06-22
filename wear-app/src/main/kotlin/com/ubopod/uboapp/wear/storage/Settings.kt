@@ -2,6 +2,7 @@ package com.ubopod.uboapp.wear.storage
 
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -26,12 +27,19 @@ public class UboWearSettings(private val context: Context) {
     public val savedPort: Flow<Int> = context.dataStore.data
         .map { it[KEY_PORT] ?: DEFAULT_PORT }
 
+    public val savedUseTls: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_USE_TLS] ?: false }
+
     public suspend fun setHost(host: String) {
         context.dataStore.edit { it[KEY_HOST] = host }
     }
 
     public suspend fun setPort(port: Int) {
         context.dataStore.edit { it[KEY_PORT] = port }
+    }
+
+    public suspend fun setUseTls(useTls: Boolean) {
+        context.dataStore.edit { it[KEY_USE_TLS] = useTls }
     }
 
     /**
@@ -59,6 +67,7 @@ public class UboWearSettings(private val context: Context) {
         public const val DEFAULT_PORT: Int = 50051
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
+        private val KEY_USE_TLS: Preferences.Key<Boolean> = booleanPreferencesKey("device_use_tls")
         private val KEY_AUDIO_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("audio_source_id")
     }
 }

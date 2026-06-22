@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,12 +54,14 @@ import com.ubopod.ubokotlin.connection.ConnectionState
 public fun ConnectionScreen(viewModel: DeviceViewModel) {
     val savedHost by viewModel.savedHost.collectAsStateWithLifecycle()
     val savedPort by viewModel.savedPort.collectAsStateWithLifecycle()
+    val savedUseTls by viewModel.savedUseTls.collectAsStateWithLifecycle()
     val discovered by viewModel.discovered.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val lastError by viewModel.client.lastError.collectAsStateWithLifecycle()
 
     var host by remember(savedHost) { mutableStateOf(savedHost) }
     var portText by remember(savedPort) { mutableStateOf(savedPort.toString()) }
+    var useTls by remember(savedUseTls) { mutableStateOf(savedUseTls) }
 
     // Lifecycle the discovery scan to this screen's composition.
     DisposableEffect(Unit) {
@@ -99,12 +102,27 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
             modifier = Modifier.fillMaxWidth(),
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Use TLS (secure)", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Enable when connecting through a secure tunnel or reverse proxy.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = useTls, onCheckedChange = { useTls = it })
+        }
+
         Button(
             onClick = {
                 val port = portText.toIntOrNull() ?: 50051
                 // Use the ViewModel-scoped trigger so the in-flight probe
                 // survives ContentScreen's CONNECTING-state route swap.
-                viewModel.triggerConnect(host.trim(), port)
+                viewModel.triggerConnect(host.trim(), port, useTls)
             },
             enabled = host.isNotBlank() && connectionState != ConnectionState.CONNECTING,
             modifier = Modifier.fillMaxWidth(),
@@ -147,7 +165,9 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
                 DiscoveredDeviceRow(device) {
                     host = device.host
                     portText = device.port.toString()
-                    viewModel.triggerConnect(device.host, device.port)
+                    // mDNS-discovered devices are on the LAN → plaintext.
+                    useTls = false
+                    viewModel.triggerConnect(device.host, device.port, useTls = false)
                 }
             }
         }

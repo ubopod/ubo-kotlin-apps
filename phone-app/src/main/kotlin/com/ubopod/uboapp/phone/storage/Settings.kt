@@ -23,6 +23,9 @@ public class UboSettings(private val context: Context) {
     public val savedPort: Flow<Int> = context.dataStore.data
         .map { it[KEY_PORT] ?: DEFAULT_PORT }
 
+    public val savedUseTls: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_USE_TLS] ?: false }
+
     public val hasCompletedOnboarding: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_ONBOARDED] ?: false }
 
@@ -40,6 +43,10 @@ public class UboSettings(private val context: Context) {
 
     public suspend fun setPort(port: Int) {
         context.dataStore.edit { it[KEY_PORT] = port }
+    }
+
+    public suspend fun setUseTls(useTls: Boolean) {
+        context.dataStore.edit { it[KEY_USE_TLS] = useTls }
     }
 
     public suspend fun markOnboardingComplete() {
@@ -89,6 +96,7 @@ public class UboSettings(private val context: Context) {
         public const val DEFAULT_PORT: Int = 50051
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
+        private val KEY_USE_TLS: Preferences.Key<Boolean> = booleanPreferencesKey("device_use_tls")
         private val KEY_ONBOARDED: Preferences.Key<Boolean> = booleanPreferencesKey("has_completed_onboarding")
         private val KEY_CAMERA_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("camera_source_id")
         private val KEY_AUDIO_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("audio_source_id")

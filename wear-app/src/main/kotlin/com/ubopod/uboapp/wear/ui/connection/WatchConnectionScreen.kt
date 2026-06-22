@@ -29,7 +29,9 @@ import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.ToggleChip
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
 import kotlinx.coroutines.launch
@@ -46,10 +48,12 @@ import kotlinx.coroutines.launch
 public fun WatchConnectionScreen(viewModel: DeviceViewModel) {
     val savedHost by viewModel.savedHost.collectAsStateWithLifecycle()
     val savedPort by viewModel.savedPort.collectAsStateWithLifecycle()
+    val savedUseTls by viewModel.savedUseTls.collectAsStateWithLifecycle()
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
 
     var host by remember(savedHost) { mutableStateOf(savedHost) }
     var portText by remember(savedPort) { mutableStateOf(savedPort.toString()) }
+    var useTls by remember(savedUseTls) { mutableStateOf(savedUseTls) }
     val scope = rememberCoroutineScope()
     val listState = rememberScalingLazyListState()
 
@@ -85,11 +89,20 @@ public fun WatchConnectionScreen(viewModel: DeviceViewModel) {
                 )
             }
             item {
+                ToggleChip(
+                    checked = useTls,
+                    onCheckedChange = { useTls = it },
+                    label = { Text("Use TLS") },
+                    toggleControl = { Switch(checked = useTls) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
                 Button(
                     onClick = {
                         val port = portText.toIntOrNull() ?: 50051
                         scope.launch {
-                            runCatching { viewModel.connect(host.trim(), port) }
+                            runCatching { viewModel.connect(host.trim(), port, useTls) }
                         }
                     },
                     enabled = host.isNotBlank() && state != ConnectionState.CONNECTING,

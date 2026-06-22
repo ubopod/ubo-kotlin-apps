@@ -55,6 +55,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
     public val savedPort: StateFlow<Int> = settings.savedPort
         .stateIn(viewModelScope, SharingStarted.Eagerly, UboWearSettings.DEFAULT_PORT)
+    public val savedUseTls: StateFlow<Boolean> = settings.savedUseTls
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     init {
         // Throttled (5 s) write of SystemStats to the wear-local DataStore
@@ -91,10 +93,11 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
             }.asStateFlow()
         }
 
-    public suspend fun connect(host: String, port: Int) {
+    public suspend fun connect(host: String, port: Int, useTls: Boolean = false) {
         settings.setHost(host)
         settings.setPort(port)
-        client.connect(host, port)
+        settings.setUseTls(useTls)
+        client.connect(host, port, useTls)
         client.startViewSubscription()
         client.startStatsSubscription()
         client.startInputsSubscription()
@@ -111,8 +114,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         client.disconnect()
     }
 
-    public fun triggerConnect(host: String, port: Int) {
-        viewModelScope.launch { runCatching { connect(host, port) } }
+    public fun triggerConnect(host: String, port: Int, useTls: Boolean = false) {
+        viewModelScope.launch { runCatching { connect(host, port, useTls) } }
     }
 
     public fun triggerDisconnect() {
@@ -163,7 +166,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         val host = settings.savedHost.first()
         if (host.isEmpty()) return false
         val port = settings.savedPort.first()
-        connect(host, port)
+        val useTls = settings.savedUseTls.first()
+        connect(host, port, useTls)
         return true
     }
 
