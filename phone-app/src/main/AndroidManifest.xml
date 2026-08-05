@@ -15,6 +15,13 @@
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
+    <!-- ACCESS_WIFI_STATE is a normal permission (granted at install).
+         ACCESS_FINE_LOCATION is requested at runtime by the Wi-Fi QR code
+         screen — WifiManager.connectionInfo only returns the real SSID
+         (instead of "<unknown ssid>") when it's granted. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
     <application
         android:name=".UboPhoneApplication"
         android:allowBackup="true"
