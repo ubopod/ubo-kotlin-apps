@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -64,7 +65,7 @@ public fun InputFormSheet(
     // values map keyed by field.name
     val values = remember(description.id) {
         mutableStateMapOf<String, String>().apply {
-            description.fields.forEach { put(it.name, it.defaultValue.orEmpty()) }
+            description.fields.forEach { put(it.name, seedValue(it)) }
         }
     }
     val errors = remember(description.id) { mutableStateMapOf<String, String>() }
@@ -73,7 +74,7 @@ public fun InputFormSheet(
     LaunchedEffect(description.id) {
         // Re-seed defaults if the description changes (rarely; the device
         // generally creates a fresh demand id per request).
-        description.fields.forEach { values[it.name] = it.defaultValue.orEmpty() }
+        description.fields.forEach { values[it.name] = seedValue(it) }
     }
 
     fun validate(): Boolean {
@@ -156,6 +157,20 @@ public fun InputFormSheet(
         }
     }
 }
+
+/**
+ * Initial/re-seeded value for a field. [InputFieldType.RANGE] is stored as
+ * an integer 0-100 string (parsed from [InputFieldDescription.defaultValue],
+ * defaulting to 50) since the field has no natural string default; every
+ * other type just uses `defaultValue` verbatim. Mirrors the special case in
+ * Swift's `InputFormView.seedDefaults()`.
+ */
+private fun seedValue(field: InputFieldDescription): String =
+    if (field.type == InputFieldType.RANGE) {
+        (field.defaultValue?.toDoubleOrNull() ?: 50.0).toInt().toString()
+    } else {
+        field.defaultValue.orEmpty()
+    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -259,6 +274,21 @@ private fun FieldEditor(
                 // TODO: wire androidx.activity.compose.rememberLauncherForActivityResult
                 //       with ActivityResultContracts.GetContent — see Swift FilePickerButton.
             )
+            InputFieldType.RANGE -> {
+                val sliderValue = value.toFloatOrNull() ?: 50f
+                Text(field.label)
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { onChange(it.toInt().toString()) },
+                    valueRange = 0f..100f,
+                    steps = 99,
+                )
+                Text(
+                    "${sliderValue.toInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
         field.description?.takeIf { it.isNotEmpty() }?.let {

@@ -3,6 +3,9 @@ package com.ubopod.uboapp.phone.ui.settings
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -232,11 +235,21 @@ public fun WifiQrCodeScreen(onBack: () -> Unit) {
     }
 }
 
+/**
+ * Reads the SSID of the currently active Wi-Fi network via
+ * [NetworkCapabilities.getTransportInfo] rather than the deprecated
+ * `WifiManager.connectionInfo`. Still requires `ACCESS_FINE_LOCATION` —
+ * without it, [WifiInfo.getSSID] returns [WifiManager.UNKNOWN_SSID] instead
+ * of the real network name.
+ */
 private fun fetchCurrentSsid(context: Context): String? {
-    val wifiManager = context.applicationContext
-        .getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    val connectivityManager = context.applicationContext
+        .getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         ?: return null
-    val rawSsid = wifiManager.connectionInfo?.ssid ?: return null
-    val cleaned = rawSsid.removeSurrounding("\"")
-    return cleaned.takeUnless { it.isEmpty() || it == "<unknown ssid>" }
+    val network = connectivityManager.activeNetwork ?: return null
+    val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return null
+    if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+    val wifiInfo = capabilities.transportInfo as? WifiInfo ?: return null
+    val cleaned = wifiInfo.ssid.removeSurrounding("\"")
+    return cleaned.takeUnless { it.isEmpty() || it == WifiManager.UNKNOWN_SSID }
 }
