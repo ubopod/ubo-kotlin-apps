@@ -134,6 +134,7 @@ private fun FieldEditor(
         InputFieldType.TEXT,
         InputFieldType.LONG,
         InputFieldType.NUMBER,
+        InputFieldType.RANGE,
         InputFieldType.SELECT,
         InputFieldType.FILE,
         InputFieldType.COLOR,
@@ -151,7 +152,7 @@ private fun FieldEditor(
                 cursorBrush = SolidColor(MaterialTheme.colors.primary),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = when (field.type) {
-                        InputFieldType.NUMBER -> KeyboardType.Number
+                        InputFieldType.NUMBER, InputFieldType.RANGE -> KeyboardType.Number
                         InputFieldType.PASSWORD -> KeyboardType.Password
                         else -> KeyboardType.Text
                     },
