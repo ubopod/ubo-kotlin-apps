@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.ubopod.uboapp.phone.ui.common.LinkifiedText
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.InputFieldDescription
 import com.ubopod.ubokotlin.models.InputFieldType
@@ -51,6 +52,13 @@ import kotlinx.coroutines.launch
  * `client.cancelInput`. [onDismiss] is called immediately on close so the
  * parent can stop presenting before the device's state update propagates
  * back over gRPC.
+ *
+ * `prompt` is the primary heading and `title` an optional elaboration
+ * shown below it — matching the Web UI's `Inputs` component (`prompt` ->
+ * `DialogTitle`, `title` -> linkified subtitle), not the field names'
+ * intuitive-looking-but-wrong opposite reading. Getting this backwards
+ * previously showed a several-hundred-character OAuth URL as plain,
+ * unclickable body text instead of the linkified heading it should be.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -124,11 +132,15 @@ public fun InputFormSheet(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            description.title?.takeIf { it.isNotEmpty() }?.let {
+            description.prompt?.takeIf { it.isNotEmpty() }?.let {
                 Text(it, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
-            description.prompt?.takeIf { it.isNotEmpty() }?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            description.title?.takeIf { it.isNotEmpty() }?.let {
+                LinkifiedText(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             description.fields.forEach { field ->
@@ -292,7 +304,11 @@ private fun FieldEditor(
         }
 
         field.description?.takeIf { it.isNotEmpty() }?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LinkifiedText(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         error?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)

@@ -110,9 +110,7 @@ private fun ConnectedShell(viewModel: DeviceViewModel) {
     }
 
     // Active input demands surface as a modal bottom sheet that auto-shows
-    // when the device pushes a new InputDescription. Until
-    // subscribeToActiveInputs lands in :lib, activeInputs stays empty and
-    // this never triggers — but the wiring is in place.
+    // when the device pushes a new InputDescription.
     val activeInputs by viewModel.activeInputs.collectAsStateWithLifecycle()
     val first = activeInputs.firstOrNull()
     if (first != null) {

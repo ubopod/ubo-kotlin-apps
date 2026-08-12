@@ -20,26 +20,38 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ubopod.uboapp.phone.ui.common.LinkifiedText
 import com.ubopod.uboapp.phone.ui.common.generateQrCodeBitmap
 import com.ubopod.uboapp.phone.ui.common.stringProp
 import com.ubopod.ubokotlin.models.RenderViewData
 
 /**
- * Render a single QR code from `props["data"]` (or `"url"` / `"payload"`).
- * Mirrors `QRCodeRenderView` in the Swift port.
+ * Render a single QR code. Mirrors `QRCodeRenderView` in the Swift port.
+ *
+ * Every producer (tailscale/rpi-connect/vscode/hermes setup services) sends
+ * the QR-encoded string under `value` — never `data`, `url`, or `payload`,
+ * which is what this used to check for and is why the QR code silently
+ * failed to render.
  */
 @Composable
 public fun QrCodeRender(data: RenderViewData) {
-    val payload = data.stringProp("data", "url", "payload")
-    val image = remember(payload) { generateQrCodeBitmap(payload, sizePx = 512) }
+    val value = data.stringProp("value")
+    val label = data.stringProp("label").ifEmpty { value }
+    val caption = data.stringProp("caption").ifEmpty { null }
+    val image = remember(value) { generateQrCodeBitmap(value, sizePx = 512) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (data.title.isNotEmpty()) {
+            Text(data.title, style = MaterialTheme.typography.titleMedium)
+        }
         Box(
             modifier = Modifier
                 .widthIn(max = 360.dp)
@@ -53,24 +65,30 @@ public fun QrCodeRender(data: RenderViewData) {
             if (image != null) {
                 Image(
                     bitmap = image,
-                    contentDescription = "QR code containing $payload",
+                    contentDescription = "QR code containing $value",
                     filterQuality = FilterQuality.None,
                     modifier = Modifier.fillMaxWidth().aspectRatio(1f),
                 )
             } else {
                 Text(
-                    "No payload to encode.",
+                    "Empty QR payload",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color.DarkGray,
                 )
             }
         }
-        if (payload.isNotEmpty()) {
-            Text(
-                payload,
-                style = MaterialTheme.typography.bodySmall,
-                fontFamily = FontFamily.Monospace,
+        if (label.isNotEmpty()) {
+            LinkifiedText(
+                text = label,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 textAlign = TextAlign.Center,
+            )
+        }
+        caption?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.sp),
+                fontWeight = FontWeight.SemiBold,
             )
         }
     }
