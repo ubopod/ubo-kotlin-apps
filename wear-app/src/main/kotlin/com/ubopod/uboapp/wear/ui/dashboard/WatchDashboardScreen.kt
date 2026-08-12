@@ -3,81 +3,75 @@ package com.ubopod.uboapp.wear.ui.dashboard
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.HorizontalPageIndicator
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.PageIndicatorState
 import androidx.wear.compose.material.Text
+import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchAppsPage
+import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchSensorPage
+import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchSystemPage
+import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchWeatherDateTimePage
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 
 /**
- * Compact watch dashboard — CPU / RAM circular gauges + temperature +
- * clock readout. Mirrors `ubo Watch App/Views/WatchDashboardView.swift`.
+ * Paginated dashboard mirroring `ubo Watch App/Views/WatchDashboardView.swift`:
+ * System (CPU/RAM/Storage/temp/uptime) -> Weather/Date/Time -> Apps -> one
+ * page per connected sensor device. The sensor page count is dynamic — it
+ * tracks `stats.sensorDevices` directly, so adding/removing a sensor
+ * changes the page count without restarting the app. Swipes horizontally
+ * between pages; the outer shell (`WatchContentScreen`) still pages
+ * horizontally between tabs too, but Wear's edge-swipe-to-dismiss and
+ * this in-page pager don't collide since the pager only responds to drags
+ * that start on the page content.
  */
 @Composable
 public fun WatchDashboardScreen(viewModel: DeviceViewModel) {
     val stats by viewModel.systemStats.collectAsStateWithLifecycle()
+    val currentStats = stats
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text("Dashboard", style = MaterialTheme.typography.title3)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+    if (currentStats == null) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            MiniGauge("CPU", stats?.cpuPercent ?: 0f)
-            MiniGauge("RAM", stats?.ramPercent ?: 0f)
+            Text("Waiting for readings…", style = MaterialTheme.typography.caption2)
         }
-
-        val temp = stats?.temperature
-        Text(
-            if (temp != null) "${temp.toInt()}°C" else "—°C",
-            style = MaterialTheme.typography.caption1,
-            color = MaterialTheme.colors.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            stats?.clock?.takeIf { it.isNotEmpty() } ?: "—",
-            style = MaterialTheme.typography.body2,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.SemiBold,
-        )
+        return
     }
-}
 
-@Composable
-private fun MiniGauge(label: String, percent: Float) {
-    val ratio = (percent / 100f).coerceIn(0f, 1f)
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, style = MaterialTheme.typography.caption2)
-        Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(
-                progress = ratio,
-                modifier = Modifier.fillMaxSize(),
-                strokeWidth = 5.dp,
-            )
-            Text(
-                "${percent.toInt()}%",
-                style = MaterialTheme.typography.caption1,
-                fontWeight = FontWeight.Bold,
-            )
+    val hasApps = currentStats.dockerApps.isNotEmpty()
+    val appsPageIndex = if (hasApps) 2 else -1
+    val sensorPageOffset = 2 + (if (hasApps) 1 else 0)
+    val pageCount = sensorPageOffset + currentStats.sensorDevices.size
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { pageCount })
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+            when {
+                page == 0 -> WatchSystemPage(currentStats)
+                page == 1 -> WatchWeatherDateTimePage(currentStats)
+                page == appsPageIndex -> WatchAppsPage(currentStats.dockerApps)
+                else -> currentStats.sensorDevices.getOrNull(page - sensorPageOffset)?.let { device ->
+                    WatchSensorPage(device)
+                }
+            }
         }
+        HorizontalPageIndicator(
+            pageIndicatorState = object : PageIndicatorState {
+                override val pageOffset: Float get() = pagerState.currentPageOffsetFraction
+                override val selectedPage: Int get() = pagerState.currentPage
+                override val pageCount: Int get() = pageCount
+            },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 }
