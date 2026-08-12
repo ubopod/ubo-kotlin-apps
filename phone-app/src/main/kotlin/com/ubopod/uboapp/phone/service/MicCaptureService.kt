@@ -12,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,7 +35,17 @@ public class MicCaptureService {
     private var client: UboClient? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var captureJob: Job? = null
+    private var sendJob: Job? = null
     private var record: AudioRecord? = null
+
+    private data class QueuedSample(val timestamp: Float, val data: ByteArray, val rate: Int, val audioSource: String)
+
+    // Unbounded on purpose: AudioRecord's hardware ring buffer is small, and
+    // if read() isn't called promptly it silently overwrites unread audio —
+    // a dropout, not a delay. The capture loop below must never block on the
+    // network, so sends are handed off here and drained by a separate
+    // coroutine, mirroring AudioPlaybackService's outbound decoupling.
+    private var sampleChannel: Channel<QueuedSample>? = null
 
     /** Tags every streamed sample so the core binds the listening session to
      *  this app's mic and ignores the device's built-in mic. Set at [start]. */
@@ -102,11 +113,37 @@ public class MicCaptureService {
         ar.startRecording()
         Log.i(TAG, "AudioRecord recording (minBuffer=$minBuffer, recordingState=${ar.recordingState})")
 
+        val channel = Channel<QueuedSample>(capacity = Channel.UNLIMITED)
+        sampleChannel = channel
+
+        sendJob = scope.launch {
+            var sent = 0
+            for (item in channel) {
+                runCatching {
+                    client.reportAudioSample(
+                        timestamp = item.timestamp,
+                        data = item.data,
+                        channels = 1,
+                        rate = item.rate,
+                        width = 2,
+                        audioSource = item.audioSource,
+                    )
+                    sent++
+                    if (sent == 1) Log.i(TAG, "streaming to core (src=${item.audioSource})")
+                }.onFailure { throwable ->
+                    // Cancellation on stop() surfaces as a dispatch failure
+                    // mid-send — that's expected, not an error.
+                    if (!isActive) return@onFailure
+                    Log.e(TAG, "reportAudioSample failed (sent=$sent): ${throwable.message}", throwable)
+                    if (throwable !is UboError) throw throwable
+                }
+            }
+        }
+
         captureJob = scope.launch {
             val buffer = ByteArray(CHUNK_FRAMES * 2) // PCM16 → 2 bytes per frame
             val startedAt = System.nanoTime()
             var reads = 0
-            var sent = 0
             var silentReads = 0
             while (isActive) {
                 val read = withContext(Dispatchers.IO) { ar.read(buffer, 0, buffer.size) }
@@ -120,26 +157,9 @@ public class MicCaptureService {
                 reads++
                 val timestamp = (System.nanoTime() - startedAt).toFloat() / 1_000_000_000f
                 val payload = if (read == buffer.size) buffer.copyOf() else buffer.copyOf(read)
-                runCatching {
-                    client.reportAudioSample(
-                        timestamp = timestamp,
-                        data = payload,
-                        channels = 1,
-                        rate = sampleRate,
-                        width = 2,
-                        audioSource = audioSource,
-                    )
-                    sent++
-                    if (sent == 1) Log.i(TAG, "streaming to core (src=$audioSource)")
-                }.onFailure { throwable ->
-                    // Cancellation on stop() surfaces as a dispatch failure
-                    // mid-send — that's expected, not an error.
-                    if (!isActive) return@onFailure
-                    Log.e(TAG, "reportAudioSample failed (sent=$sent): ${throwable.message}", throwable)
-                    if (throwable !is UboError) throw throwable
-                }
+                channel.trySend(QueuedSample(timestamp, payload, sampleRate, audioSource))
             }
-            Log.i(TAG, "capture stopped (reads=$reads, sent=$sent, silentReads=$silentReads)")
+            Log.i(TAG, "capture stopped (reads=$reads, silentReads=$silentReads)")
         }
     }
 
@@ -147,6 +167,10 @@ public class MicCaptureService {
     public fun stop() {
         captureJob?.cancel()
         captureJob = null
+        sendJob?.cancel()
+        sendJob = null
+        sampleChannel?.close()
+        sampleChannel = null
         record?.let {
             runCatching { it.stop() }
             it.release()
