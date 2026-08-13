@@ -101,7 +101,7 @@ public fun NotificationViewRenderer(data: NotificationViewData, viewModel: Devic
                         IconButton(onClick = {
                             haptic(HapticStrength.LIGHT)
                             scope.launch {
-                                runCatching { viewModel.client.selectMenuItem(label = action.label) }
+                                runCatching { viewModel.client.selectMenuItem(action) }
                             }
                         }) {
                             Icon(
@@ -126,7 +126,7 @@ public fun NotificationViewRenderer(data: NotificationViewData, viewModel: Devic
                         onClick = {
                             haptic(HapticStrength.LIGHT)
                             scope.launch {
-                                runCatching { viewModel.client.selectMenuItem(label = item.label) }
+                                runCatching { viewModel.client.selectMenuItem(item) }
                             }
                         },
                         shape = RoundedCornerShape(12.dp),

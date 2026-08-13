@@ -65,7 +65,7 @@ public fun WatchMenuRenderer(data: MenuViewData, viewModel: DeviceViewModel) {
             items(items) { item ->
                 MenuChip(item) {
                     scope.launch {
-                        runCatching { viewModel.client.selectMenuItem(label = item.label) }
+                        runCatching { viewModel.client.selectMenuItem(item) }
                     }
                 }
             }

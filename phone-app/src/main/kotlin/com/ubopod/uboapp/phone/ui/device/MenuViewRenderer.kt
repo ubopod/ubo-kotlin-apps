@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Renders a [MenuViewData] as a vertical list. Tapping an item dispatches
- * `selectMenuItem(label = …)` over gRPC. Row layout shared with
+ * via `UboClient.selectMenuItem(item)` over gRPC. Row layout shared with
  * [HomeViewRenderer] via [MenuItemRow].
  *
  * Mirrors the menu-rendering branch of
@@ -76,7 +76,7 @@ public fun MenuViewRenderer(data: MenuViewData, viewModel: DeviceViewModel) {
                 } else {
                     MenuItemRow(item) {
                         scope.launch {
-                            runCatching { viewModel.client.selectMenuItem(label = item.label) }
+                            runCatching { viewModel.client.selectMenuItem(item) }
                         }
                     }
                     if (index < data.items.lastIndex && data.items[index + 1] != null) {

@@ -97,7 +97,12 @@ public fun WatchInputFormSheet(
                 Button(
                     onClick = {
                         val payload = if (initial?.type == InputFieldType.CHECKBOX) bool.toString() else value
-                        scope.launch { runCatching { viewModel.client.provideInput(description.id, payload) } }
+                        // Server-side handlers read result.data, not value
+                        // (mirrors the Web UI's inputs.tsx) — even this
+                        // single-field form needs its field name -> value
+                        // in the data map or submit silently no-ops.
+                        val data = initial?.let { mapOf(it.name to payload) }.orEmpty()
+                        scope.launch { runCatching { viewModel.client.provideInput(description.id, payload, data) } }
                         onDismiss()
                     },
                     colors = ButtonDefaults.primaryButtonColors(),

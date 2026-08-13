@@ -105,11 +105,14 @@ public fun InputFormSheet(
     fun submit() {
         if (!validate()) return
         submitting = true
-        // Match Swift: pass the first field's value as the scalar.
+        // `value` is the scalar shown to single-field callers; `data` (every
+        // field's name -> value) is what server-side handlers for
+        // multi-field forms actually read (mirrors the Web UI's inputs.tsx).
         val scalar = description.fields.firstOrNull()?.let { values[it.name] }.orEmpty()
+        val data = values.toMap()
         onDismiss()
         scope.launch {
-            runCatching { viewModel.client.provideInput(description.id, scalar) }
+            runCatching { viewModel.client.provideInput(description.id, scalar, data) }
             submitting = false
         }
     }

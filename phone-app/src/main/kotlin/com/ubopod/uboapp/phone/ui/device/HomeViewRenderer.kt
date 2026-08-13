@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
  * Renders the device's home view: a system-summary card on top with
  * CPU / RAM / volume bars, followed by a vertical list of menu items
  * sharing the same row layout as [MenuViewRenderer]. Tapping a row
- * forwards `selectMenuItem(label = …)` over gRPC.
+ * dispatches by action_id (falling back to icon/label) over gRPC.
  *
  * Mirrors the home-rendering branch of
  * `ubo-swift-app/ubo-swift-app/Views/Device/DeviceView.swift`.
@@ -63,17 +63,19 @@ public fun HomeViewRenderer(data: HomeViewData, viewModel: DeviceViewModel) {
                     MenuItemRow(item) {
                         scope.launch {
                             runCatching {
-                                // Home-view items often have empty or
-                                // non-unique labels (the row is icon-only
-                                // on the Pi panel), so MenuChooseByLabel
-                                // can't resolve "Notifications" or
-                                // "Power" — the action no-ops and the
-                                // home view stays put, which looks like
-                                // "went back to main menu" to the user.
-                                // Prefer icon-based dispatch when an
-                                // icon is present, matching the Swift
-                                // port's DeviceView.swift:181-188.
-                                if (item.icon.isNotEmpty()) {
+                                if (!item.actionId.isNullOrEmpty()) {
+                                    viewModel.client.selectMenuItem(item)
+                                } else if (item.icon.isNotEmpty()) {
+                                    // Home-view items often have empty or
+                                    // non-unique labels (the row is icon-only
+                                    // on the Pi panel), so MenuChooseByLabel
+                                    // can't resolve "Notifications" or
+                                    // "Power" — the action no-ops and the
+                                    // home view stays put, which looks like
+                                    // "went back to main menu" to the user.
+                                    // Prefer icon-based dispatch when an
+                                    // icon is present, matching the Swift
+                                    // port's DeviceView.swift:181-188.
                                     viewModel.client.selectMenuItemByIcon(item.icon)
                                 } else {
                                     viewModel.client.selectMenuItem(label = item.label)

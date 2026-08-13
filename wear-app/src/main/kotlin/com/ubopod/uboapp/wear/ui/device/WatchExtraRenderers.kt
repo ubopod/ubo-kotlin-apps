@@ -60,7 +60,7 @@ public fun WatchNotificationRenderer(data: NotificationViewData, viewModel: Devi
             }
             items(data.items.filterNotNull()) { item ->
                 MenuChip(item) {
-                    scope.launch { runCatching { viewModel.client.selectMenuItem(label = item.label) } }
+                    scope.launch { runCatching { viewModel.client.selectMenuItem(item) } }
                 }
             }
             item {
@@ -151,7 +151,7 @@ public fun WatchPromptRenderer(data: PromptViewData, viewModel: DeviceViewModel)
             }
             items(data.items) { item ->
                 MenuChip(item) {
-                    scope.launch { runCatching { viewModel.client.selectMenuItem(label = item.label) } }
+                    scope.launch { runCatching { viewModel.client.selectMenuItem(item) } }
                 }
             }
             if (data.items.isEmpty()) {

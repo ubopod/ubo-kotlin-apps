@@ -64,7 +64,7 @@ public fun PromptViewRenderer(data: PromptViewData, viewModel: DeviceViewModel) 
             data.items.forEach { item ->
                 Button(
                     onClick = {
-                        scope.launch { runCatching { viewModel.client.selectMenuItem(label = item.label) } }
+                        scope.launch { runCatching { viewModel.client.selectMenuItem(item) } }
                     },
                     colors = ButtonDefaults.buttonColors(),
                     modifier = Modifier.fillMaxWidth(),
