@@ -23,15 +23,3 @@ public fun RenderViewData.stringProp(vararg keys: String): String {
     }
     return ""
 }
-
-/**
- * Pull a bytes-shaped prop from a [RenderViewData]. Returns `null` if no
- * matching key holds a [RenderPropValue.BytesValue].
- */
-public fun RenderViewData.bytesProp(vararg keys: String): ByteArray? {
-    for (k in keys) {
-        val v = props[k]
-        if (v is RenderPropValue.BytesValue) return v.value
-    }
-    return null
-}

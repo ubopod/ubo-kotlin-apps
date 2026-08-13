@@ -47,7 +47,7 @@ public fun RenderViewRenderer(data: RenderViewData, viewModel: DeviceViewModel) 
             RenderKind.QrCode -> QrCodeRender(data)
             RenderKind.QrCodeCarousel -> QrCodeCarouselRender(data)
             RenderKind.TextViewer -> TextViewerRender(data)
-            RenderKind.ImageViewer -> ImageViewerRender(data)
+            RenderKind.ImageViewer -> ImageViewerRender(data, viewModel)
             RenderKind.Status -> StatusRender(data)
             RenderKind.FrameStream -> FrameStreamRender(data, viewModel)
             is RenderKind.Unknown -> Text(
