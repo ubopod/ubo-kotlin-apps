@@ -1,6 +1,7 @@
 package com.ubopod.uboapp.phone.ui.inputs
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -32,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +47,8 @@ import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.InputFieldDescription
 import com.ubopod.ubokotlin.models.InputFieldType
 import com.ubopod.ubokotlin.models.WebUIInputDescription
+import java.io.InputStream
 import java.util.UUID
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /**
@@ -147,7 +146,9 @@ public fun InputFormSheet(
             // references it.
             for (pending in pendingUploads.values) {
                 launch {
-                    runCatching { viewModel.client.uploadFile(pending.uploadId, pending.filename, pending.data) }
+                    runCatching {
+                        viewModel.client.uploadFile(pending.uploadId, pending.filename, pending.size, pending.openStream)
+                    }
                 }
             }
         }
@@ -396,31 +397,35 @@ private fun SelectField(
 }
 
 /**
- * A FILE field picked and read into memory, ready to hand to
- * `UboClient.uploadFile`. [uploadId] is generated on pick (not on submit)
- * so it's stable if the user re-opens the picker before submitting.
+ * A FILE field picked but not yet uploaded. [uploadId] is generated on pick
+ * (not on submit) so it's stable if the user re-opens the picker before
+ * submitting. [openStream] opens a fresh read of the picked content — the
+ * actual bytes are never buffered in memory here; `UboClient.uploadFile`
+ * reads it one chunk at a time, since a picked video can run to hundreds
+ * of MB and buffering that into a single ByteArray risks an OOM (which is
+ * exactly what "Couldn't read that file" used to mean here).
  */
-public data class PendingUpload(val uploadId: String, val filename: String, val data: ByteArray) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-        other as PendingUpload
-        return uploadId == other.uploadId && filename == other.filename && data.contentEquals(other.data)
-    }
+public class PendingUpload(
+    public val uploadId: String,
+    public val filename: String,
+    public val size: Long,
+    public val openStream: suspend () -> InputStream,
+)
 
-    override fun hashCode(): Int {
-        var result = uploadId.hashCode()
-        result = 31 * result + filename.hashCode()
-        result = 31 * result + data.contentHashCode()
-        return result
+/** Query a content Uri's display name and byte size in one cursor pass. */
+private fun queryFileMeta(context: Context, uri: Uri): Pair<String?, Long> {
+    val projection = arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
+    context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            val name = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+            val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else -1L
+            return name to size
+        }
     }
+    return null to -1L
 }
-
-private fun queryDisplayName(context: Context, uri: Uri): String? =
-    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-        if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-    }
 
 @Composable
 private fun FilePickerField(
@@ -430,32 +435,42 @@ private fun FilePickerField(
     onFilePicked: (PendingUpload) -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var readError by remember { mutableStateOf<String?>(null) }
 
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         readError = null
-        scope.launch(Dispatchers.IO) {
-            val filename = queryDisplayName(context, uri) ?: uri.lastPathSegment ?: "file"
-            val bytes = runCatching {
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            }.getOrNull()
-            withContext(Dispatchers.Main) {
-                if (bytes == null) {
-                    readError = "Couldn't read that file."
-                    return@withContext
-                }
-                onChange(filename)
-                onFilePicked(PendingUpload(uploadId = UUID.randomUUID().toString(), filename = filename, data = bytes))
-            }
+        // The upload runs in the background after this sheet closes (see
+        // InputFormSheet.submit()) — a persistable grant survives that,
+        // unlike GetContent()'s permission which is only guaranteed for as
+        // long as the launching component is alive.
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+        val (name, size) = queryFileMeta(context, uri)
+        val filename = name ?: uri.lastPathSegment ?: "file"
+        if (size <= 0L) {
+            readError = "Couldn't read that file."
+            return@rememberLauncherForActivityResult
+        }
+        onChange(filename)
+        onFilePicked(
+            PendingUpload(
+                uploadId = UUID.randomUUID().toString(),
+                filename = filename,
+                size = size,
+                openStream = {
+                    context.contentResolver.openInputStream(uri)
+                        ?: error("Couldn't open $filename")
+                },
+            ),
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(field.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(
-            onClick = { launcher.launch("*/*") },
+            onClick = { launcher.launch(arrayOf("*/*")) },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(value.ifEmpty { "Choose file" })
