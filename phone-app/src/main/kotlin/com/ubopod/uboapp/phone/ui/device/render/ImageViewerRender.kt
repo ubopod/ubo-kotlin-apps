@@ -3,8 +3,9 @@ package com.ubopod.uboapp.phone.ui.device.render
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
@@ -47,17 +48,21 @@ public fun ImageViewerRender(data: RenderViewData, viewModel: DeviceViewModel) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 160.dp)
+            .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         val currentBitmap = bitmap
         if (currentBitmap != null) {
+            // fillMaxSize(), not fillMaxWidth(): the box above already has
+            // a definite square size, but Image only reliably scales UP a
+            // small bitmap to fill its container when both dimensions are
+            // constrained — see FrameStreamRender for the full story.
             Image(
                 bitmap = currentBitmap.asImageBitmap(),
                 contentDescription = data.title.ifEmpty { "Image" },
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
             )
         } else {
             CircularProgressIndicator()

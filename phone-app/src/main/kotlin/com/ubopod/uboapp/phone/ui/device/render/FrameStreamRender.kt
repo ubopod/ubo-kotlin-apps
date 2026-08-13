@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,11 +66,18 @@ public fun FrameStreamRender(data: RenderViewData, viewModel: DeviceViewModel) {
         ) {
             val currentBitmap = bitmap
             if (currentBitmap != null) {
+                // fillMaxSize(), not fillMaxWidth(): the box above already
+                // has a definite square size (fillMaxWidth + aspectRatio),
+                // but Image only reliably scales UP a small bitmap to fill
+                // its container when both dimensions are constrained —
+                // fillMaxWidth() alone rendered every frame at close to its
+                // native pixel size (a 240px preview frame as a fingertip-
+                // sized image on a 1000px-wide box) despite ContentScale.Fit.
                 Image(
                     bitmap = currentBitmap.asImageBitmap(),
                     contentDescription = data.title.ifEmpty { "Stream" },
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                 )
             } else {
                 CircularProgressIndicator(color = Color.White)
