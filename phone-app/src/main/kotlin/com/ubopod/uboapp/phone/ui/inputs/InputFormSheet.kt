@@ -1,5 +1,10 @@
 package com.ubopod.uboapp.phone.ui.inputs
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +36,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -40,6 +46,9 @@ import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.InputFieldDescription
 import com.ubopod.ubokotlin.models.InputFieldType
 import com.ubopod.ubokotlin.models.WebUIInputDescription
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /**
@@ -78,6 +87,9 @@ public fun InputFormSheet(
     }
     val errors = remember(description.id) { mutableStateMapOf<String, String>() }
     var submitting by remember(description.id) { mutableStateOf(false) }
+    // FILE fields picked but not yet uploaded, keyed by field name. Sent in
+    // the background after submit — see `submit()`.
+    val pendingUploads = remember(description.id) { mutableStateMapOf<String, PendingUpload>() }
 
     LaunchedEffect(description.id) {
         // Re-seed defaults if the description changes (rarely; the device
@@ -108,12 +120,30 @@ public fun InputFormSheet(
         // `value` is the scalar shown to single-field callers; `data` (every
         // field's name -> value) is what server-side handlers for
         // multi-field forms actually read (mirrors the Web UI's inputs.tsx).
-        val scalar = description.fields.firstOrNull()?.let { values[it.name] }.orEmpty()
-        val data = values.toMap()
+        val data = values.toMutableMap()
+        // FILE fields: the server never sees the bytes through `data` — it
+        // reads `{field}_upload_id`/`{field}_name` and waits for a matching
+        // chunked upload (started below) to complete. Mirrors the Web UI's
+        // `inputs.tsx`.
+        for ((fieldName, pending) in pendingUploads) {
+            data["${fieldName}_upload_id"] = pending.uploadId
+            data["${fieldName}_name"] = pending.filename
+        }
+        val scalar = description.fields.firstOrNull()?.let { data[it.name] }.orEmpty()
         onDismiss()
         scope.launch {
-            runCatching { viewModel.client.provideInput(description.id, scalar, data) }
+            val result = runCatching { viewModel.client.provideInput(description.id, scalar, data) }
             submitting = false
+            if (result.isFailure) return@launch
+            // Uploads run after the form has been accepted, same as the Web
+            // UI — the server's await_completed_upload has its own timeout
+            // to cover this arriving after the InputProvideAction that
+            // references it.
+            for (pending in pendingUploads.values) {
+                launch {
+                    runCatching { viewModel.client.uploadFile(pending.uploadId, pending.filename, pending.data) }
+                }
+            }
         }
     }
 
@@ -152,6 +182,7 @@ public fun InputFormSheet(
                     value = values[field.name].orEmpty(),
                     onChange = { values[field.name] = it },
                     error = errors[field.name],
+                    onFilePicked = { pendingUploads[field.name] = it },
                 )
             }
 
@@ -194,6 +225,7 @@ private fun FieldEditor(
     value: String,
     onChange: (String) -> Unit,
     error: String?,
+    onFilePicked: (PendingUpload) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         when (field.type) {
@@ -279,15 +311,11 @@ private fun FieldEditor(
                 isError = error != null,
                 modifier = Modifier.fillMaxWidth(),
             )
-            InputFieldType.FILE -> OutlinedTextField(
+            InputFieldType.FILE -> FilePickerField(
+                field = field,
                 value = value,
-                onValueChange = onChange,
-                label = { Text("${field.label} (path)") },
-                singleLine = true,
-                isError = error != null,
-                modifier = Modifier.fillMaxWidth(),
-                // TODO: wire androidx.activity.compose.rememberLauncherForActivityResult
-                //       with ActivityResultContracts.GetContent — see Swift FilePickerButton.
+                onChange = onChange,
+                onFilePicked = onFilePicked,
             )
             InputFieldType.RANGE -> {
                 val sliderValue = value.toFloatOrNull() ?: 50f
@@ -357,6 +385,84 @@ private fun SelectField(
                     },
                 )
             }
+        }
+    }
+}
+
+/**
+ * A FILE field picked and read into memory, ready to hand to
+ * `UboClient.uploadFile`. [uploadId] is generated on pick (not on submit)
+ * so it's stable if the user re-opens the picker before submitting.
+ */
+public data class PendingUpload(val uploadId: String, val filename: String, val data: ByteArray) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as PendingUpload
+        return uploadId == other.uploadId && filename == other.filename && data.contentEquals(other.data)
+    }
+
+    override fun hashCode(): Int {
+        var result = uploadId.hashCode()
+        result = 31 * result + filename.hashCode()
+        result = 31 * result + data.contentHashCode()
+        return result
+    }
+}
+
+private fun queryDisplayName(context: Context, uri: Uri): String? =
+    context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+    }
+
+@Composable
+private fun FilePickerField(
+    field: InputFieldDescription,
+    value: String,
+    onChange: (String) -> Unit,
+    onFilePicked: (PendingUpload) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var readError by remember { mutableStateOf<String?>(null) }
+
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        readError = null
+        scope.launch(Dispatchers.IO) {
+            val filename = queryDisplayName(context, uri) ?: uri.lastPathSegment ?: "file"
+            val bytes = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }.getOrNull()
+            withContext(Dispatchers.Main) {
+                if (bytes == null) {
+                    readError = "Couldn't read that file."
+                    return@withContext
+                }
+                onChange(filename)
+                onFilePicked(PendingUpload(uploadId = UUID.randomUUID().toString(), filename = filename, data = bytes))
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(field.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedButton(
+            onClick = { launcher.launch("*/*") },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(value.ifEmpty { "Choose file" })
+        }
+        if (value.isNotEmpty()) {
+            Text(
+                "Selected: $value",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        readError?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
     }
 }
