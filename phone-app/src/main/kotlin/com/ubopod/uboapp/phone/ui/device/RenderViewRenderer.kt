@@ -16,6 +16,7 @@ import com.ubopod.uboapp.phone.ui.device.render.FrameStreamRender
 import com.ubopod.uboapp.phone.ui.device.render.ImageViewerRender
 import com.ubopod.uboapp.phone.ui.device.render.QrCodeCarouselRender
 import com.ubopod.uboapp.phone.ui.device.render.QrCodeRender
+import com.ubopod.uboapp.phone.ui.device.render.ReadingsRender
 import com.ubopod.uboapp.phone.ui.device.render.StatusRender
 import com.ubopod.uboapp.phone.ui.device.render.TextViewerRender
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
@@ -50,6 +51,7 @@ public fun RenderViewRenderer(data: RenderViewData, viewModel: DeviceViewModel) 
             RenderKind.ImageViewer -> ImageViewerRender(data, viewModel)
             RenderKind.Status -> StatusRender(data)
             RenderKind.FrameStream -> FrameStreamRender(data, viewModel)
+            RenderKind.Readings -> ReadingsRender(data)
             is RenderKind.Unknown -> Text(
                 "Unknown render kind: ${kind.raw}",
                 style = MaterialTheme.typography.bodyMedium,

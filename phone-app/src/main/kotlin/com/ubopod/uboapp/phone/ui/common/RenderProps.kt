@@ -23,3 +23,12 @@ public fun RenderViewData.stringProp(vararg keys: String): String {
     }
     return ""
 }
+
+/**
+ * Pull a list-of-strings prop (`labels`/`values`/`units`/`keys`/
+ * `device_classes`), matching the server's `RenderProps` shape.
+ */
+public fun RenderViewData.stringListProp(key: String): List<String> {
+    val list = props[key] as? RenderPropValue.ListValue ?: return emptyList()
+    return list.value.mapNotNull { (it as? RenderPropValue.StringValue)?.value }
+}
