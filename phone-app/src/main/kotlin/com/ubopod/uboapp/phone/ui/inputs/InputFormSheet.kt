@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
 import com.ubopod.uboapp.phone.ui.common.LinkifiedText
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.InputFieldDescription
@@ -77,7 +78,6 @@ public fun InputFormSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
 
     // values map keyed by field.name
     val values = remember(description.id) {
@@ -131,7 +131,13 @@ public fun InputFormSheet(
         }
         val scalar = description.fields.firstOrNull()?.let { data[it.name] }.orEmpty()
         onDismiss()
-        scope.launch {
+        // viewModel.viewModelScope, not the composable-scoped `scope`:
+        // onDismiss() above removes this sheet from composition, which
+        // cancels `scope` — a multi-chunk upload mid-flight at that moment
+        // would die with the server-side session stuck waiting forever for
+        // chunks/completion that will never arrive ("stuck uploading").
+        // viewModelScope survives the sheet closing.
+        viewModel.viewModelScope.launch {
             val result = runCatching { viewModel.client.provideInput(description.id, scalar, data) }
             submitting = false
             if (result.isFailure) return@launch
@@ -149,7 +155,7 @@ public fun InputFormSheet(
 
     fun cancel() {
         onDismiss()
-        scope.launch {
+        viewModel.viewModelScope.launch {
             runCatching { viewModel.client.cancelInput(description.id) }
         }
     }
