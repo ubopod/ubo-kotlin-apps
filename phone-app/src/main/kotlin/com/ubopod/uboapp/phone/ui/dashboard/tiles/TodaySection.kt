@@ -46,7 +46,7 @@ public fun TodaySection(
     DashboardCard(title = "Today", icon = Icons.Filled.CalendarMonth) {
         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Column(modifier = Modifier.weight(1f)) {
-                WeatherBlock(weather, locationCity)
+                WeatherBlock(weather, locationCity, locationCountry)
             }
 
             VerticalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
@@ -75,7 +75,7 @@ public fun TodaySection(
 }
 
 @Composable
-private fun WeatherBlock(weather: WeatherCondition?, locationCity: String?) {
+private fun WeatherBlock(weather: WeatherCondition?, locationCity: String?, locationCountry: String?) {
     if (weather != null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(imageVector = WeatherIcon.icon(weather.symbolCode), contentDescription = null)
@@ -86,6 +86,18 @@ private fun WeatherBlock(weather: WeatherCondition?, locationCity: String?) {
             )
         }
         Text(WeatherIcon.phrase(weather.symbolCode), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val place = listOfNotNull(
+            locationCity?.takeIf { it.isNotEmpty() },
+            locationCountry?.takeIf { it.isNotEmpty() },
+        ).joinToString(", ").takeIf { it.isNotEmpty() }
+        if (place != null) {
+            Text(
+                place,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
     } else {
         Text(
             if (locationCity == null) "Location not detected yet" else "Fetching forecast…",
