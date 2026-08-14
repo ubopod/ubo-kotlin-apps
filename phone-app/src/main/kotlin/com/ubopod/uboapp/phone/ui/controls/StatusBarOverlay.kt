@@ -49,6 +49,7 @@ public fun StatusBarOverlay(
     cpuPercent: Float,
     ramPercent: Float,
     temperature: Float?,
+    temperatureUnit: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -64,6 +65,7 @@ public fun StatusBarOverlay(
                 cpuPercent = cpuPercent,
                 ramPercent = ramPercent,
                 temperature = temperature,
+                temperatureUnit = temperatureUnit,
                 bar = bar,
             )
             val progress = bar?.progressNotifications.orEmpty()
@@ -85,6 +87,7 @@ private fun MetricsRow(
     cpuPercent: Float,
     ramPercent: Float,
     temperature: Float?,
+    temperatureUnit: String?,
     bar: StatusBarData?,
 ) {
     val tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -95,7 +98,7 @@ private fun MetricsRow(
     ) {
         MetricChip(Icons.Filled.Speed, "${cpuPercent.toInt()}%", tint)
         MetricChip(Icons.Filled.Memory, "${ramPercent.toInt()}%", tint)
-        temperature?.let { MetricChip(Icons.Filled.Thermostat, "${it.toInt()}°C", tint) }
+        temperature?.let { MetricChip(Icons.Filled.Thermostat, "${it.toInt()}${temperatureUnit ?: "°C"}", tint) }
 
         // Recording / replaying / mic-recording indicators — mirrors
         // the iOS overlay's leading symbols.

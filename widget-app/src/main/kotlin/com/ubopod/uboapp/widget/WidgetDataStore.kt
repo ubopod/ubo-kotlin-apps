@@ -34,6 +34,7 @@ public object WidgetDataStore {
             prefs[KEY_CPU] = stats.cpuPercent
             prefs[KEY_RAM] = stats.ramPercent
             stats.temperature?.let { prefs[KEY_TEMP] = it } ?: prefs.remove(KEY_TEMP)
+            stats.temperatureUnit?.let { prefs[KEY_TEMP_UNIT] = it } ?: prefs.remove(KEY_TEMP_UNIT)
             prefs[KEY_CONNECTED] = stats.isConnected
             prefs[KEY_HOST] = stats.deviceHost
             prefs[KEY_UPDATED] = stats.lastUpdatedEpochMs
@@ -48,6 +49,7 @@ public object WidgetDataStore {
         cpuPercent = get(KEY_CPU) ?: 0f,
         ramPercent = get(KEY_RAM) ?: 0f,
         temperature = get(KEY_TEMP),
+        temperatureUnit = get(KEY_TEMP_UNIT),
         isConnected = get(KEY_CONNECTED) ?: false,
         deviceHost = get(KEY_HOST).orEmpty(),
         lastUpdatedEpochMs = get(KEY_UPDATED) ?: 0L,
@@ -56,6 +58,7 @@ public object WidgetDataStore {
     private val KEY_CPU = floatPreferencesKey("cpu_percent")
     private val KEY_RAM = floatPreferencesKey("ram_percent")
     private val KEY_TEMP = floatPreferencesKey("temperature_c")
+    private val KEY_TEMP_UNIT = stringPreferencesKey("temperature_unit")
     private val KEY_CONNECTED = booleanPreferencesKey("is_connected")
     private val KEY_HOST = stringPreferencesKey("device_host")
     private val KEY_UPDATED = longPreferencesKey("last_updated_ms")

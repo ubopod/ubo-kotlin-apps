@@ -200,5 +200,6 @@ private fun describeRenderKind(kind: RenderKind, payload: String): String = when
     RenderKind.ImageViewer -> "Image (open phone app)"
     RenderKind.Status -> payload.ifEmpty { "Status" }
     RenderKind.FrameStream -> "Live stream (open phone app)"
+    RenderKind.Readings -> "Readings (open phone app)"
     is RenderKind.Unknown -> "Unsupported view: ${kind.raw}"
 }

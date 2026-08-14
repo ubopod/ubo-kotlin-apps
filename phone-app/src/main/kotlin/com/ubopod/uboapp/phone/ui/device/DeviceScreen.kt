@@ -111,7 +111,8 @@ public fun DeviceScreen(viewModel: DeviceViewModel) {
             bar = statusBar,
             cpuPercent = systemStats?.cpuPercent ?: 0f,
             ramPercent = systemStats?.ramPercent ?: 0f,
-            temperature = systemStats?.temperature,
+            temperature = systemStats?.temperatureDisplayValue ?: systemStats?.temperature,
+            temperatureUnit = systemStats?.temperatureDisplayUnit,
         )
         Spacer(Modifier.size(8.dp))
 

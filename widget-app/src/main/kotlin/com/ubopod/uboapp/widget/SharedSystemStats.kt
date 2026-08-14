@@ -12,6 +12,7 @@ public data class SharedSystemStats(
     val cpuPercent: Float = 0f,
     val ramPercent: Float = 0f,
     val temperature: Float? = null,
+    val temperatureUnit: String? = null,
     val isConnected: Boolean = false,
     val deviceHost: String = "",
     val lastUpdatedEpochMs: Long = 0L,

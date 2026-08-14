@@ -135,7 +135,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
             SharedSystemStats(
                 cpuPercent = stats?.cpuPercent ?: 0f,
                 ramPercent = stats?.ramPercent ?: 0f,
-                temperature = stats?.temperature,
+                temperature = stats?.temperatureDisplayValue ?: stats?.temperature,
+                temperatureUnit = stats?.temperatureDisplayUnit,
                 isConnected = client.connectionState.value.isConnected,
                 deviceHost = settings.savedHost.first(),
                 lastUpdatedEpochMs = System.currentTimeMillis(),

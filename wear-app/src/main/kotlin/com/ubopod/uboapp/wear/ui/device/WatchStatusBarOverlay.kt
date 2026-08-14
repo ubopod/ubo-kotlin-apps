@@ -36,6 +36,7 @@ public fun WatchStatusBarOverlay(
     cpuPercent: Float,
     ramPercent: Float,
     temperature: Float?,
+    temperatureUnit: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -49,7 +50,7 @@ public fun WatchStatusBarOverlay(
         ) {
             MiniMetric("CPU", cpuPercent.toInt())
             MiniMetric("RAM", ramPercent.toInt())
-            temperature?.let { MiniMetric("T", it.toInt(), suffix = "°") }
+            temperature?.let { MiniMetric("T", it.toInt(), suffix = temperatureUnit ?: "°") }
 
             val icons = bar?.icons.orEmpty()
             icons.take(2).forEach {

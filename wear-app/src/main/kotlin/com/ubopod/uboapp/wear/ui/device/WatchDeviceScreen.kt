@@ -40,7 +40,8 @@ public fun WatchDeviceScreen(viewModel: DeviceViewModel) {
             bar = statusBar,
             cpuPercent = stats?.cpuPercent ?: 0f,
             ramPercent = stats?.ramPercent ?: 0f,
-            temperature = stats?.temperature,
+            temperature = stats?.temperatureDisplayValue ?: stats?.temperature,
+            temperatureUnit = stats?.temperatureDisplayUnit,
         )
         Box(modifier = Modifier.fillMaxSize()) {
             when (val v = view) {

@@ -68,7 +68,7 @@ public class UboTileService : TileService() {
         val cpuLine = chip("CPU", "${snapshot.cpuPercent.toInt()}%", primaryColor, secondaryColor)
         val ramLine = chip("RAM", "${snapshot.ramPercent.toInt()}%", primaryColor, secondaryColor)
         val tempLine = snapshot.temperature?.let {
-            chip("TEMP", "${it.toInt()}°C", primaryColor, secondaryColor)
+            chip("TEMP", "${it.toInt()}${snapshot.temperatureUnit ?: "°C"}", primaryColor, secondaryColor)
         }
 
         val statusText = Text.Builder()

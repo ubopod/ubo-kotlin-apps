@@ -37,6 +37,7 @@ public fun SystemSection(
     cpuPercent: Float,
     ramPercent: Float,
     temperature: Float?,
+    temperatureUnit: String? = null,
     diskPercent: Float?,
     diskUsedBytes: Long?,
     diskTotalBytes: Long?,
@@ -64,7 +65,12 @@ public fun SystemSection(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (temperature != null) {
-                    DashboardStat(label = "Temperature", value = "%.1f".format(temperature), unit = "°C", icon = Icons.Filled.Thermostat)
+                    DashboardStat(
+                        label = "Temperature",
+                        value = "%.1f".format(temperature),
+                        unit = temperatureUnit ?: "°C",
+                        icon = Icons.Filled.Thermostat,
+                    )
                 }
                 if (diskUsedBytes != null && diskTotalBytes != null && hasDisk) {
                     DashboardStat(label = "Storage used", value = "${DashboardFormat.bytes(diskUsedBytes)} / ${DashboardFormat.bytes(diskTotalBytes)}")

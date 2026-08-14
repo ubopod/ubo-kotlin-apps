@@ -81,7 +81,8 @@ public fun DashboardScreen(viewModel: DeviceViewModel) {
             SystemSection(
                 cpuPercent = currentStats.cpuPercent,
                 ramPercent = currentStats.ramPercent,
-                temperature = currentStats.temperature,
+                temperature = currentStats.temperatureDisplayValue ?: currentStats.temperature,
+                temperatureUnit = currentStats.temperatureDisplayUnit,
                 diskPercent = currentStats.diskPercent,
                 diskUsedBytes = currentStats.diskUsedBytes,
                 diskTotalBytes = currentStats.diskTotalBytes,

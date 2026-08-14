@@ -62,10 +62,13 @@ public fun WatchSystemPage(stats: SystemStats) {
             }
         }
 
-        stats.temperature?.let { temperature ->
+        (stats.temperatureDisplayValue ?: stats.temperature)?.let { temperature ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Thermostat, contentDescription = null, modifier = Modifier)
-                Text("%.1f°C".format(temperature), style = MaterialTheme.typography.caption1)
+                Text(
+                    "%.1f${stats.temperatureDisplayUnit ?: "°C"}".format(temperature),
+                    style = MaterialTheme.typography.caption1,
+                )
             }
         }
 

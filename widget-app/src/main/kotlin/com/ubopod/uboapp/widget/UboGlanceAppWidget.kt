@@ -137,7 +137,15 @@ private fun LargeLayout(stats: SharedSystemStats) {
         StatTile(label = "RAM", percent = stats.ramPercent, stale = stats.isStale, modifier = GlanceModifier.fillMaxWidth(), large = true)
         stats.temperature?.let {
             Spacer(modifier = GlanceModifier.height(8.dp))
-            StatTile(label = "Temp", percent = it, stale = stats.isStale, modifier = GlanceModifier.fillMaxWidth(), large = true, suffix = "°C")
+            StatTile(
+                label = "Temp",
+                percent = it,
+                stale = stats.isStale,
+                modifier = GlanceModifier.fillMaxWidth(),
+                large = true,
+                suffix = stats.temperatureUnit ?: "°C",
+                accentOverride = temperatureAccent(it, stats.temperatureUnit),
+            )
         }
         if (stats.isStale) {
             Spacer(modifier = GlanceModifier.height(8.dp))
@@ -168,7 +176,7 @@ private fun HeaderRow(stats: SharedSystemStats) {
         }
         stats.temperature?.let {
             Text(
-                text = "${it.toInt()}°C",
+                text = "${it.toInt()}${stats.temperatureUnit ?: "°C"}",
                 style = TextStyle(color = textPrimary(stats), fontSize = 12.sp, fontWeight = FontWeight.Medium),
             )
         }
@@ -183,9 +191,10 @@ private fun StatTile(
     modifier: GlanceModifier = GlanceModifier,
     large: Boolean = false,
     suffix: String = "%",
+    accentOverride: androidx.glance.unit.ColorProvider? = null,
 ) {
     val accent = if (stale) ColorProvider(Color(0xFF4A4A4A), Color(0xFF4A4A4A))
-                 else gaugeAccent(percent)
+                 else accentOverride ?: gaugeAccent(percent)
     Box(
         modifier = modifier
             .padding(if (large) 14.dp else 10.dp)
@@ -238,6 +247,21 @@ private fun gaugeAccent(percent: Float) = run {
         percent >= 85f -> Color(0xFFCC4040) // red
         percent >= 65f -> Color(0xFFB07A20) // amber
         else -> Color(0xFF1F1F1F) // neutral
+    }
+    ColorProvider(color, color)
+}
+
+/**
+ * [stats].temperature is already converted to the device's effective unit
+ * system server-side; the hot/warm thresholds move with it, since they only
+ * mean anything in Celsius otherwise.
+ */
+private fun temperatureAccent(temperature: Float, unit: String?) = run {
+    val (hot, warm) = if (unit == "°F") 158f to 122f else 70f to 50f
+    val color = when {
+        temperature >= hot -> Color(0xFFCC4040)
+        temperature >= warm -> Color(0xFFB07A20)
+        else -> Color(0xFF1F1F1F)
     }
     ColorProvider(color, color)
 }

@@ -39,7 +39,10 @@ public fun WatchWeatherDateTimePage(stats: SystemStats) {
         if (weather != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(WatchWeatherIcon.icon(weather.symbolCode), contentDescription = null, modifier = Modifier)
-                Text("${weather.temperatureCelsius.toInt()}°C", style = MaterialTheme.typography.title3)
+                Text(
+                    "${weather.temperatureDisplayValue.toInt()}${weather.temperatureDisplayUnit}",
+                    style = MaterialTheme.typography.title3,
+                )
             }
             Text(WatchWeatherIcon.phrase(weather.symbolCode), style = MaterialTheme.typography.caption2)
             if (place != null) {

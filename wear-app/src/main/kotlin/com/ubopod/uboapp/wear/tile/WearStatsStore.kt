@@ -23,6 +23,7 @@ public object WearStatsStore {
     private val KEY_CPU: Preferences.Key<Float> = floatPreferencesKey("tile_cpu_percent")
     private val KEY_RAM: Preferences.Key<Float> = floatPreferencesKey("tile_ram_percent")
     private val KEY_TEMP: Preferences.Key<Float> = floatPreferencesKey("tile_temperature_c")
+    private val KEY_TEMP_UNIT: Preferences.Key<String> = stringPreferencesKey("tile_temperature_unit")
     private val KEY_CONNECTED: Preferences.Key<Boolean> = booleanPreferencesKey("tile_connected")
     private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("tile_host")
     private val KEY_UPDATED: Preferences.Key<Long> = longPreferencesKey("tile_last_updated_ms")
@@ -31,8 +32,10 @@ public object WearStatsStore {
         context.tileStore.edit { prefs ->
             prefs[KEY_CPU] = stats?.cpuPercent ?: 0f
             prefs[KEY_RAM] = stats?.ramPercent ?: 0f
-            stats?.temperature?.let { prefs[KEY_TEMP] = it }
-            if (stats?.temperature == null) prefs.remove(KEY_TEMP)
+            val temperature = stats?.temperatureDisplayValue ?: stats?.temperature
+            temperature?.let { prefs[KEY_TEMP] = it }
+            if (temperature == null) prefs.remove(KEY_TEMP)
+            stats?.temperatureDisplayUnit?.let { prefs[KEY_TEMP_UNIT] = it } ?: prefs.remove(KEY_TEMP_UNIT)
             prefs[KEY_CONNECTED] = connected
             prefs[KEY_HOST] = host
             prefs[KEY_UPDATED] = System.currentTimeMillis()
@@ -45,6 +48,7 @@ public object WearStatsStore {
             cpuPercent = prefs[KEY_CPU] ?: 0f,
             ramPercent = prefs[KEY_RAM] ?: 0f,
             temperature = prefs[KEY_TEMP],
+            temperatureUnit = prefs[KEY_TEMP_UNIT],
             connected = prefs[KEY_CONNECTED] ?: false,
             host = prefs[KEY_HOST].orEmpty(),
             lastUpdatedMs = prefs[KEY_UPDATED] ?: 0L,
@@ -55,6 +59,7 @@ public object WearStatsStore {
         val cpuPercent: Float,
         val ramPercent: Float,
         val temperature: Float?,
+        val temperatureUnit: String?,
         val connected: Boolean,
         val host: String,
         val lastUpdatedMs: Long,

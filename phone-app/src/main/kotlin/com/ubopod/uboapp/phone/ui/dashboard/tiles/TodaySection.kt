@@ -79,7 +79,11 @@ private fun WeatherBlock(weather: WeatherCondition?, locationCity: String?) {
     if (weather != null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(imageVector = WeatherIcon.icon(weather.symbolCode), contentDescription = null)
-            Text("${weather.temperatureCelsius.roundToInt()}°C", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "${weather.temperatureDisplayValue.roundToInt()}${weather.temperatureDisplayUnit}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
         Text(WeatherIcon.phrase(weather.symbolCode), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
