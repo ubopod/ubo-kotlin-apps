@@ -1,5 +1,6 @@
 package com.ubopod.uboapp.phone.ui.device
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -17,11 +18,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.ubopod.uboapp.phone.ui.common.HapticStrength
 import com.ubopod.uboapp.phone.ui.common.IconView
 import com.ubopod.uboapp.phone.ui.common.markupAnnotated
 import com.ubopod.uboapp.phone.ui.common.rememberHaptic
+import com.ubopod.uboapp.phone.ui.common.uboIconBackgroundColor
 import com.ubopod.uboapp.phone.ui.common.uboIconColor
 import com.ubopod.ubokotlin.models.MenuItemData
 
@@ -52,7 +55,13 @@ internal fun MenuItemRow(item: MenuItemData, onTap: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val accent = uboIconColor(item.color, fallback = MaterialTheme.colorScheme.onSurface)
-            Box(modifier = Modifier.size(32.dp), contentAlignment = Alignment.Center) {
+            val iconBackground = uboIconBackgroundColor(item.backgroundColor)
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .let { if (iconBackground != null) it.background(iconBackground, RoundedCornerShape(8.dp)) else it },
+                contentAlignment = Alignment.Center,
+            ) {
                 IconView(icon = item.icon, size = 24.dp, tint = accent)
             }
             Text(

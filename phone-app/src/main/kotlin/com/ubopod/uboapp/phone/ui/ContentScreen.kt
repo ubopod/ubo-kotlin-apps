@@ -1,5 +1,9 @@
 package com.ubopod.uboapp.phone.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +22,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +30,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ubopod.uboapp.phone.ui.connection.ConnectionScreen
 import com.ubopod.uboapp.phone.ui.dashboard.DashboardScreen
@@ -85,6 +92,30 @@ private enum class ConnectedTab(val label: String, val icon: ImageVector) {
 @Composable
 private fun ConnectedShell(viewModel: DeviceViewModel) {
     var tab by remember { mutableStateOf(ConnectedTab.DEVICE) }
+
+    // The camera-source viewfinder is activated by the Pi pushing a
+    // CameraStartViewfinderEvent, not a tap in this app, so there's no
+    // click handler to gate a permission request behind (unlike the mic
+    // toggle in DeviceScreen). Watch the same flag DeviceViewModel's own
+    // auto-trigger watches; if CameraX's bindToLifecycle already failed
+    // for lack of permission, request it and retry once granted.
+    val context = LocalContext.current
+    val isCameraViewfinderActive by viewModel.isCameraViewfinderActive.collectAsStateWithLifecycle()
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) viewModel.cameraService.start()
+    }
+    LaunchedEffect(isCameraViewfinderActive) {
+        if (!isCameraViewfinderActive) return@LaunchedEffect
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     Scaffold(
         bottomBar = {

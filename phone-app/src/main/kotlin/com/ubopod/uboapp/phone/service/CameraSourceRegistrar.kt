@@ -61,6 +61,7 @@ public class CameraSourceRegistrar(
      */
     public suspend fun register() {
         val sourceId = settings.getOrCreateCameraSourceId()
+        client.cameraSourceId = sourceId
         runCatching {
             client.registerAsCameraSource(sourceId, deviceLabel)
         }.onFailure { t ->

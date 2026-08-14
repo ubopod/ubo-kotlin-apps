@@ -12,14 +12,18 @@ import androidx.lifecycle.LifecycleOwner
 import com.ubopod.ubokotlin.UboClient
 import com.ubopod.ubokotlin.UboError
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.withContext
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -27,10 +31,20 @@ import java.util.concurrent.Executors
  * CameraX-based service that ships preview frames to the Ubo device.
  *
  * Mirrors `ubo-swift-app/ubo-swift-app/Services/CameraManager.swift` and
- * `CameraCaptureService.swift`. Each ImageAnalysis frame is encoded as
- * JPEG and dispatched as a `CameraReportImageAction` over gRPC; the
- * client tags it with `cameraSourceId` so the Pi can route or drop the
- * frame depending on which source is currently selected in its picker.
+ * `CameraCaptureService.swift`. Each ImageAnalysis frame is converted to
+ * packed RGB888 (the Pi validates the payload against `width * height *
+ * 3` — a compressed format doesn't match) and dispatched as a
+ * `CameraReportImageAction` over gRPC; the client tags it with
+ * `cameraSourceId` so the Pi can route or drop the frame depending on
+ * which source is currently selected in its picker.
+ *
+ * Frame coalescing: only the latest converted frame is kept in
+ * [pendingFrame], guarded by [frameLock]; a single dispatch loop sends it
+ * and waits for that send to complete before picking up the next one.
+ * Firing an unbounded `launch` per analyzed frame let sends queue up
+ * faster than the network could drain them, each holding a ~900KB RGB
+ * buffer alive — an OOM within seconds. Mirrors Swift's `pendingFrame` /
+ * `startDispatchLoop` pattern in `CameraManager.swift`.
  *
  * Lifecycle:
  *   1. Wire `client` and a `LifecycleOwner` via [bind] (called from the
@@ -56,6 +70,12 @@ public class CameraService(private val context: Context) {
 
     @Volatile
     private var running: Boolean = false
+
+    private data class PendingFrame(val data: ByteArray, val width: Int, val height: Int, val timestamp: Float)
+
+    private val frameLock = Any()
+    private var pendingFrame: PendingFrame? = null
+    private var dispatchJob: Job? = null
 
     private val _lens = MutableStateFlow(Lens.BACK)
     public val lens: StateFlow<Lens> = _lens.asStateFlow()
@@ -114,6 +134,7 @@ public class CameraService(private val context: Context) {
         if (running) return
         running = true
         _lastError.value = null
+        startDispatchLoop()
         scope.launch {
             val provider = runCatching { ProcessCameraProvider.getInstance(context).await() }
                 .getOrElse { t ->
@@ -145,12 +166,17 @@ public class CameraService(private val context: Context) {
                 .build()
                 .also { it.setAnalyzer(analyzerExecutor, ::onFrame) }
 
-            try {
-                provider.unbindAll()
-                provider.bindToLifecycle(owner, selector, analysis)
-            } catch (t: Throwable) {
-                running = false
-                _lastError.value = t.message ?: "Camera bindToLifecycle failed"
+            // CameraX's unbindAll()/bindToLifecycle() require the main
+            // thread; `scope` has no dispatcher (runs on Dispatchers.Default),
+            // so this must switch explicitly rather than inherit.
+            withContext(Dispatchers.Main) {
+                try {
+                    provider.unbindAll()
+                    provider.bindToLifecycle(owner, selector, analysis)
+                } catch (t: Throwable) {
+                    running = false
+                    _lastError.value = t.message ?: "Camera bindToLifecycle failed"
+                }
             }
         }
     }
@@ -160,28 +186,43 @@ public class CameraService(private val context: Context) {
     public fun stop() {
         if (!running) return
         running = false
+        dispatchJob?.cancel()
+        dispatchJob = null
+        synchronized(frameLock) { pendingFrame = null }
         scope.launch {
-            runCatching {
-                ProcessCameraProvider.getInstance(context).await().unbindAll()
+            val provider = runCatching { ProcessCameraProvider.getInstance(context).await() }
+                .getOrNull() ?: return@launch
+            withContext(Dispatchers.Main) {
+                runCatching { provider.unbindAll() }
             }
         }
     }
 
-    private fun onFrame(image: ImageProxy) {
-        val client = this.client
-        if (client == null) {
-            image.close()
-            return
-        }
-        try {
-            val jpegBytes = encodeYuv420ToJpeg(image, quality = 70) ?: return
-            scope.launch {
+    /**
+     * Send [pendingFrame] and wait for that send to finish before picking
+     * up the next one, so at most one frame is ever in flight — see the
+     * frame-coalescing note on the class doc comment.
+     */
+    private fun startDispatchLoop() {
+        dispatchJob?.cancel()
+        dispatchJob = scope.launch {
+            while (isActive) {
+                val frame = synchronized(frameLock) {
+                    val f = pendingFrame
+                    pendingFrame = null
+                    f
+                }
+                val client = this@CameraService.client
+                if (frame == null || client == null) {
+                    delay(10)
+                    continue
+                }
                 runCatching {
                     client.sendCameraFrame(
-                        data = jpegBytes,
-                        width = image.width,
-                        height = image.height,
-                        timestamp = image.imageInfo.timestamp.toFloat() / 1_000_000f,
+                        data = frame.data,
+                        width = frame.width,
+                        height = frame.height,
+                        timestamp = frame.timestamp,
                     )
                 }.onFailure { throwable ->
                     // Connection dropped between frames is expected; swallow
@@ -189,39 +230,86 @@ public class CameraService(private val context: Context) {
                     if (throwable !is UboError) throw throwable
                 }
             }
+        }
+    }
+
+    private fun onFrame(image: ImageProxy) {
+        try {
+            val (rgbBytes, outWidth, outHeight) = yuv420ToRotatedRgb(image)
+            synchronized(frameLock) {
+                pendingFrame = PendingFrame(
+                    data = rgbBytes,
+                    width = outWidth,
+                    height = outHeight,
+                    timestamp = image.imageInfo.timestamp.toFloat() / 1_000_000f,
+                )
+            }
         } finally {
             image.close()
         }
     }
 
-    private fun encodeYuv420ToJpeg(image: ImageProxy, quality: Int): ByteArray? {
-        // Convert YUV_420_888 → NV21 → JPEG via YuvImage. ImageAnalysis with
-        // OUTPUT_IMAGE_FORMAT_YUV_420_888 gives us three planes; copy them
-        // into a single NV21 byte array for the encoder.
-        val yPlane = image.planes[0].buffer
-        val uPlane = image.planes[1].buffer
-        val vPlane = image.planes[2].buffer
-        val ySize = yPlane.remaining()
-        val uSize = uPlane.remaining()
-        val vSize = vPlane.remaining()
-        val nv21 = ByteArray(ySize + uSize + vSize)
-        yPlane.get(nv21, 0, ySize)
-        // NV21: Y plane, then VU interleaved. Many devices already provide
-        // semi-planar VU; copy V then U in linear blocks as a safe fallback.
-        vPlane.get(nv21, ySize, vSize)
-        uPlane.get(nv21, ySize + vSize, uSize)
-        val yuv = android.graphics.YuvImage(
-            nv21,
-            android.graphics.ImageFormat.NV21,
-            image.width,
-            image.height,
-            null,
-        )
-        val out = ByteArrayOutputStream()
-        return if (yuv.compressToJpeg(android.graphics.Rect(0, 0, image.width, image.height), quality, out)) {
-            out.toByteArray()
-        } else {
-            null
+    private data class RotatedRgb(val data: ByteArray, val width: Int, val height: Int)
+
+    /**
+     * Convert a YUV_420_888 [ImageProxy] to packed RGB888 (row-major,
+     * R-G-B per pixel), rotated by `imageInfo.rotationDegrees` so the
+     * output matches the device's display orientation. ImageAnalysis
+     * delivers frames in the sensor's native orientation — CameraX only
+     * auto-rotates the Preview use case, not ImageAnalysis — so without
+     * this the image comes out sideways (e.g. 90° off in portrait, since
+     * the back sensor is mounted landscape). The Pi validates the payload
+     * against exactly `width * height * 3` for whatever width/height is
+     * sent, so the *output* (rotated) dimensions are what's reported.
+     */
+    private fun yuv420ToRotatedRgb(image: ImageProxy): RotatedRgb {
+        val width = image.width
+        val height = image.height
+        val yPlane = image.planes[0]
+        val uPlane = image.planes[1]
+        val vPlane = image.planes[2]
+        val yBuffer = yPlane.buffer
+        val uBuffer = uPlane.buffer
+        val vBuffer = vPlane.buffer
+        val yRowStride = yPlane.rowStride
+        val yPixelStride = yPlane.pixelStride
+        val uRowStride = uPlane.rowStride
+        val uPixelStride = uPlane.pixelStride
+        val vRowStride = vPlane.rowStride
+        val vPixelStride = vPlane.pixelStride
+
+        val rotation = image.imageInfo.rotationDegrees
+        val outWidth = if (rotation == 90 || rotation == 270) height else width
+        val outHeight = if (rotation == 90 || rotation == 270) width else height
+        val rgb = ByteArray(outWidth * outHeight * 3)
+
+        for (row in 0 until height) {
+            val yRowOffset = row * yRowStride
+            val uvRow = row / 2
+            val uRowOffset = uvRow * uRowStride
+            val vRowOffset = uvRow * vRowStride
+            for (col in 0 until width) {
+                val y = yBuffer.get(yRowOffset + col * yPixelStride).toInt() and 0xFF
+                val uvCol = col / 2
+                val u = (uBuffer.get(uRowOffset + uvCol * uPixelStride).toInt() and 0xFF) - 128
+                val v = (vBuffer.get(vRowOffset + uvCol * vPixelStride).toInt() and 0xFF) - 128
+
+                val r = (y + 1.402f * v).toInt().coerceIn(0, 255)
+                val g = (y - 0.344136f * u - 0.714136f * v).toInt().coerceIn(0, 255)
+                val b = (y + 1.772f * u).toInt().coerceIn(0, 255)
+
+                val (outRow, outCol) = when (rotation) {
+                    90 -> col to (height - 1 - row)
+                    180 -> (height - 1 - row) to (width - 1 - col)
+                    270 -> (width - 1 - col) to row
+                    else -> row to col
+                }
+                val outIndex = (outRow * outWidth + outCol) * 3
+                rgb[outIndex] = r.toByte()
+                rgb[outIndex + 1] = g.toByte()
+                rgb[outIndex + 2] = b.toByte()
+            }
         }
+        return RotatedRgb(rgb, outWidth, outHeight)
     }
 }

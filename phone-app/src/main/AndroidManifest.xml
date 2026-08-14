@@ -7,9 +7,8 @@
          Android 12+ the system warns the user about NSD usage. -->
 
     <!-- Hardware services. RECORD_AUDIO is requested at runtime by the
-         mic toggle in the Dashboard. CAMERA is requested at runtime when
-         the device pushes a CameraStartViewfinderEvent (subscription-side
-         decoder pending). -->
+         mic toggle in the Dashboard. CAMERA is requested at runtime by
+         ConnectedShell when the device pushes a CameraStartViewfinderEvent. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />

@@ -114,6 +114,15 @@ public fun uboIconColor(hex: String, fallback: Color = MaterialTheme.colorScheme
     return parseHexToCompose(hex) ?: fallback
 }
 
+/**
+ * Resolve a `MenuItemData.backgroundColor`-style hex string to a tinted
+ * background [Color] for the icon badge, or null when unset/unparseable
+ * (no badge). Mirrors Swift `MenuItemRow`'s
+ * `item.backgroundColor.flatMap({ Color(hex: $0) })?.opacity(0.2)`.
+ */
+public fun uboIconBackgroundColor(hex: String?): Color? =
+    hex?.let { parseHexToCompose(it)?.copy(alpha = 0.2f) }
+
 private fun parseHexToCompose(input: String): Color? {
     val s = input.trim().removePrefix("#")
     if (s.length != 6 && s.length != 8) return null
