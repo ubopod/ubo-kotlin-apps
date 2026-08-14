@@ -13,6 +13,7 @@ import com.ubopod.uboapp.phone.service.AudioPlaybackService
 import com.ubopod.uboapp.phone.service.CameraService
 import com.ubopod.uboapp.phone.service.CameraSourceRegistrar
 import com.ubopod.uboapp.phone.service.MicCaptureService
+import com.ubopod.uboapp.phone.storage.RecentConnection
 import com.ubopod.uboapp.phone.storage.UboSettings
 import com.ubopod.uboapp.widget.SharedSystemStats
 import com.ubopod.uboapp.widget.UboWidgetRefreshWorker
@@ -90,6 +91,8 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         .stateIn(viewModelScope, SharingStarted.Eagerly, UboSettings.DEFAULT_PORT)
     public val savedUseTls: StateFlow<Boolean> = settings.savedUseTls
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    public val recentConnections: StateFlow<List<RecentConnection>> = settings.recentConnections
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     public val hasCompletedOnboarding: StateFlow<Boolean> = settings.hasCompletedOnboarding
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
@@ -154,6 +157,7 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         settings.setHost(host)
         settings.setPort(port)
         settings.setUseTls(useTls)
+        settings.recordRecentConnection(host, port, useTls)
         client.connect(host, port, useTls)
         client.startViewSubscription()
         client.startStatsSubscription()

@@ -11,10 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cable
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.SignalWifi4Bar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -40,6 +44,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.ubopod.uboapp.phone.storage.RecentConnection
+import com.ubopod.uboapp.phone.ui.settings.WifiQrCodeScreen
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.UboError
 import com.ubopod.ubokotlin.connection.DiscoveredDevice
@@ -52,9 +58,16 @@ import com.ubopod.ubokotlin.connection.ConnectionState
  */
 @Composable
 public fun ConnectionScreen(viewModel: DeviceViewModel) {
+    var showWifiQrCodeScreen by remember { mutableStateOf(false) }
+    if (showWifiQrCodeScreen) {
+        WifiQrCodeScreen(onBack = { showWifiQrCodeScreen = false })
+        return
+    }
+
     val savedHost by viewModel.savedHost.collectAsStateWithLifecycle()
     val savedPort by viewModel.savedPort.collectAsStateWithLifecycle()
     val savedUseTls by viewModel.savedUseTls.collectAsStateWithLifecycle()
+    val recentConnections by viewModel.recentConnections.collectAsStateWithLifecycle()
     val discovered by viewModel.discovered.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val lastError by viewModel.client.lastError.collectAsStateWithLifecycle()
@@ -77,6 +90,7 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .safeDrawingPadding()
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -168,6 +182,93 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
                     // mDNS-discovered devices are on the LAN → plaintext.
                     useTls = false
                     viewModel.triggerConnect(device.host, device.port, useTls = false)
+                }
+            }
+        }
+
+        if (recentConnections.isNotEmpty()) {
+            HorizontalDivider()
+
+            Text(
+                "Recent Connections",
+                style = MaterialTheme.typography.titleMedium,
+            )
+
+            recentConnections.forEach { recent ->
+                RecentConnectionRow(recent) {
+                    host = recent.host
+                    portText = recent.port.toString()
+                    useTls = recent.useTls
+                    viewModel.triggerConnect(recent.host, recent.port, recent.useTls)
+                }
+            }
+        }
+
+        HorizontalDivider()
+
+        Text(
+            "New Device Setup",
+            style = MaterialTheme.typography.titleMedium,
+        )
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            TextButton(
+                onClick = { showWifiQrCodeScreen = true },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.QrCode, contentDescription = null)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Set up a new Ubo's Wi-Fi",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        Text(
+                            "Generate a QR code for the pod's camera to scan.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentConnectionRow(recent: RecentConnection, onTap: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        TextButton(
+            onClick = onTap,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.History, contentDescription = null)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(recent.host, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Port ${recent.port}" + if (recent.useTls) " · TLS" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

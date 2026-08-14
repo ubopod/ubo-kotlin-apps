@@ -1,6 +1,5 @@
 package com.ubopod.uboapp.phone.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Bedtime
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.VolumeDown
@@ -71,12 +69,6 @@ import kotlinx.coroutines.launch
  */
 @Composable
 public fun DeviceSettingsScreen(viewModel: DeviceViewModel) {
-    var showWifiQrCodeScreen by remember { mutableStateOf(false) }
-    if (showWifiQrCodeScreen) {
-        WifiQrCodeScreen(onBack = { showWifiQrCodeScreen = false })
-        return
-    }
-
     val stats by viewModel.systemStats.collectAsStateWithLifecycle()
     val host by viewModel.savedHost.collectAsStateWithLifecycle()
     val port by viewModel.savedPort.collectAsStateWithLifecycle()
@@ -111,20 +103,6 @@ public fun DeviceSettingsScreen(viewModel: DeviceViewModel) {
         }
         SettingsSection(title = "Power", footer = "These actions disconnect you from the device.") {
             PowerSection(onTrigger = { pendingPowerAction = it })
-        }
-        SettingsSection(
-            title = "Wi-Fi Connection",
-            footer = "Generate a QR code with Wi-Fi credentials that the Ubo Pod's camera can scan to join a network.",
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showWifiQrCodeScreen = true },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Generate QR Code", modifier = Modifier.weight(1f))
-                Icon(Icons.Filled.ChevronRight, contentDescription = null)
-            }
         }
         SettingsSection(title = null) {
             OutlinedButton(
