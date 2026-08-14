@@ -52,7 +52,7 @@ public fun WatchSensorPage(device: SensorDeviceState) {
 private fun EntityRow(entity: SensorEntityReading) {
     val spec = WatchSensorDisplay.spec(entity.key, entity.deviceClass)
     val label = entity.name ?: entity.key
-    val valueText = WatchDashboardFormat.reading(entity.value, entity.precision)
+    val valueText = WatchDashboardFormat.reading(entity.displayValue ?: entity.value, entity.precision)
     val entityValue = entity.value
 
     if (spec.range != null && entityValue != null) {
@@ -71,7 +71,7 @@ private fun EntityRow(entity: SensorEntityReading) {
         ) {
             Icon(spec.icon, contentDescription = null, modifier = Modifier.size(12.dp))
             Text(label, style = MaterialTheme.typography.caption2, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(valueText + (entity.unit?.let { " $it" } ?: ""), style = MaterialTheme.typography.caption2)
+            Text(valueText + ((entity.displayUnit ?: entity.unit)?.let { " $it" } ?: ""), style = MaterialTheme.typography.caption2)
         }
     }
 }

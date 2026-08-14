@@ -35,7 +35,12 @@ private val TILE_HEIGHT = 108.dp
 @Composable
 public fun CompactSensorTile(label: String, entity: SensorEntityReading, modifier: Modifier = Modifier) {
     val spec = SensorDisplay.spec(entity.key, entity.deviceClass)
-    val valueText = DashboardFormat.reading(entity.value, entity.precision)
+    // `fraction` is computed against the raw (Celsius/metric) value and
+    // SensorDisplay's Celsius/metric-scaled range table — the gauge fill
+    // percentage doesn't depend on which unit the text shows. The text
+    // itself uses the server-converted display value/unit.
+    val valueText = DashboardFormat.reading(entity.displayValue ?: entity.value, entity.precision)
+    val displayUnit = entity.displayUnit ?: entity.unit
     val range = spec.range
     val value = entity.value
 
@@ -52,7 +57,7 @@ public fun CompactSensorTile(label: String, entity: SensorEntityReading, modifie
                 DashboardGauge(
                     fraction = SensorDisplay.rangeFraction(value, range),
                     valueText = valueText,
-                    unit = entity.unit,
+                    unit = displayUnit,
                     color = DashboardColors.gaugeAccent,
                     size = 48.dp,
                     strokeWidth = 5.dp,
@@ -64,9 +69,8 @@ public fun CompactSensorTile(label: String, entity: SensorEntityReading, modifie
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(valueText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                val unit = entity.unit
-                if (unit != null) {
-                    Text(unit, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (displayUnit != null) {
+                    Text(displayUnit, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             Text(

@@ -72,8 +72,8 @@ private fun GaugeEntity(entity: SensorEntityReading) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         DashboardGauge(
             fraction = SensorDisplay.rangeFraction(value, range),
-            valueText = DashboardFormat.reading(entity.value, entity.precision),
-            unit = entity.unit,
+            valueText = DashboardFormat.reading(entity.displayValue ?: entity.value, entity.precision),
+            unit = entity.displayUnit ?: entity.unit,
             color = DashboardColors.gaugeAccent,
             size = 56.dp,
             strokeWidth = 5.dp,
@@ -92,8 +92,8 @@ private fun StatEntity(entity: SensorEntityReading) {
     val spec = SensorDisplay.spec(entity.key, entity.deviceClass)
     DashboardStat(
         label = entity.name ?: entity.key,
-        value = DashboardFormat.reading(entity.value, entity.precision),
-        unit = entity.unit,
+        value = DashboardFormat.reading(entity.displayValue ?: entity.value, entity.precision),
+        unit = entity.displayUnit ?: entity.unit,
         icon = spec.icon,
     )
 }
