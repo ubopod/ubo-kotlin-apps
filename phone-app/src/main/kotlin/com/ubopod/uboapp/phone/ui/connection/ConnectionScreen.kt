@@ -1,5 +1,6 @@
 package com.ubopod.uboapp.phone.ui.connection
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,9 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ubopod.uboapp.phone.storage.RecentConnection
@@ -75,6 +79,8 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
     var host by remember(savedHost) { mutableStateOf(savedHost) }
     var portText by remember(savedPort) { mutableStateOf(savedPort.toString()) }
     var useTls by remember(savedUseTls) { mutableStateOf(savedUseTls) }
+
+    val uriHandler = LocalUriHandler.current
 
     // Lifecycle the discovery scan to this screen's composition.
     DisposableEffect(Unit) {
@@ -145,6 +151,17 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
             Spacer(Modifier.size(8.dp))
             Text("Connect")
         }
+
+        Text(
+            "Order UboPod",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { uriHandler.openUri("https://shop.getubo.com/products/ubo-pro-4-and-5") },
+        )
 
         lastError?.let { error ->
             Surface(

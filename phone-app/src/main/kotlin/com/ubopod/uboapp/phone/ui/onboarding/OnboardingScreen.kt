@@ -16,13 +16,15 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.SettingsRemote
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,9 +41,9 @@ import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import kotlinx.coroutines.launch
 
 /**
- * Four-page welcome carousel mirroring
+ * Five-page welcome carousel mirroring
  * `ubo-swift-app/ubo-swift-app/Views/Onboarding/OnboardingView.swift`.
- * On the last page the "Get started" button persists the
+ * On the last page the "Get Started" button persists the
  * `has_completed_onboarding` flag so subsequent launches skip the carousel.
  */
 @Composable
@@ -90,13 +93,14 @@ public fun OnboardingScreen(viewModel: DeviceViewModel) {
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (isLast) "Get started" else "Continue")
+            Text(if (isLast) "Get Started" else "Next")
         }
     }
 }
 
 @Composable
 private fun OnboardingPageView(page: OnboardingPage) {
+    val uriHandler = LocalUriHandler.current
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -122,35 +126,62 @@ private fun OnboardingPageView(page: OnboardingPage) {
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (page.links.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            page.links.forEach { link ->
+                OutlinedButton(
+                    onClick = { uriHandler.openUri(link.url) },
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                ) {
+                    Text(link.label)
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        }
     }
 }
+
+private data class OnboardingLink(
+    val label: String,
+    val url: String,
+)
 
 private data class OnboardingPage(
     val icon: ImageVector,
     val title: String,
     val body: String,
+    val links: List<OnboardingLink> = emptyList(),
 )
 
 private val OnboardingPages = listOf(
     OnboardingPage(
-        icon = Icons.Filled.Notifications,
-        title = "Welcome to Ubo",
-        body = "Control your Ubo device from your Android phone. Send notifications, dispatch actions, and watch the screen mirror in real time.",
-    ),
-    OnboardingPage(
         icon = Icons.Filled.Wifi,
-        title = "Stay on the same network",
-        body = "Make sure your phone and Ubo device are on the same Wi-Fi network. The device's gRPC server listens on port 50051 by default.",
+        title = "Welcome to Ubo",
+        body = "Your Ubo Pod, made mobile. Connect to monitor, control, and interact with your device from anywhere on the network or remotely.",
     ),
     OnboardingPage(
-        icon = Icons.Filled.SettingsRemote,
-        title = "A remote in your pocket",
-        body = "Drive the menu with on-screen D-Pad / L1-L3 buttons, or trigger actions directly from quick-action shortcuts.",
+        icon = Icons.Filled.Speed,
+        title = "See it at a glance",
+        body = "Track full application and system stats (CPU, Memory, Storage, etc), and sensor readings in real time.",
     ),
     OnboardingPage(
-        icon = Icons.Filled.LinkOff,
-        title = "Reconnects automatically",
-        body = "If the connection drops we'll back off and retry. You can adjust the policy in code (ReconnectPolicy.Default).",
+        icon = Icons.Filled.PhoneAndroid,
+        title = "Your Pod's screen, on your phone",
+        body = "Browse menus, respond to prompts, and chat with the on-device assistant — all mirrored live from your Ubo.",
+    ),
+    OnboardingPage(
+        icon = Icons.Filled.QrCode,
+        title = "WiFi onboarding made easy",
+        body = "Create a WiFi QR code to pass credentials to your Ubo Pod in a single step.",
+    ),
+    OnboardingPage(
+        icon = Icons.Filled.ShoppingCart,
+        title = "Don't have a Ubo yet?",
+        body = "Get a ready-to-go UboPod, or deploy the software only version yourself on a Raspberry Pi.",
+        links = listOf(
+            OnboardingLink("Order a UboPod", "https://shop.getubo.com/products/ubo-pro-4-and-5"),
+            OnboardingLink("Set up on Raspberry Pi", "https://github.com/ubopod/ubo_app/releases"),
+        ),
     ),
 )
 
