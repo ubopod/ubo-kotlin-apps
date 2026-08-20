@@ -1,34 +1,46 @@
 package com.ubopod.uboapp.wear.ui.device
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.wear.compose.foundation.CurvedLayout
+import androidx.wear.compose.foundation.CurvedModifier
+import androidx.wear.compose.foundation.CurvedScope
+import androidx.wear.compose.foundation.CurvedTextStyle
+import androidx.wear.compose.foundation.curvedComposable
+import androidx.wear.compose.foundation.curvedRow
+import androidx.wear.compose.foundation.padding as curvedPadding
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.curvedText
 import com.ubopod.uboapp.wear.ui.common.WatchIconView
 import com.ubopod.uboapp.wear.ui.common.watchUboIconColor
 import com.ubopod.ubokotlin.models.ProgressNotificationData
 import com.ubopod.ubokotlin.models.StatusBarData
 
 /**
- * Compact watch overlay: CPU/RAM/temp inline, server-pushed icons, clock,
- * and a second row for in-progress notifications. Mirrors
- * `ubo Watch App/Views/WatchStatusBarOverlay.swift` (commits `b142fcf` +
- * `571443a`).
+ * Compact watch overlay: CPU/RAM/temp + a server-pushed icon, arced along
+ * the top of the bezel, plus a second row for in-progress notifications.
+ * Mirrors `ubo Watch App/Views/WatchStatusBarOverlay.swift` (commits
+ * `b142fcf` + `571443a`).
+ *
+ * A flat `Row` doesn't work here: on a round screen the usable width at
+ * y=0 is ~0 (the apex of the circle), so a straight status bar either
+ * clips at both ends or has to be pushed down far enough to look like an
+ * ugly gap under the bezel. `CurvedLayout` sidesteps the problem entirely
+ * by laying the text out along the arc itself — the same primitive that
+ * makes the page indicator curve correctly. Round-only — no flat-Row
+ * fallback for square watches.
  */
 @Composable
 public fun WatchStatusBarOverlay(
@@ -39,43 +51,43 @@ public fun WatchStatusBarOverlay(
     temperatureUnit: String? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    // MaterialTheme reads need an actual @Composable context; the curved
+    // DSL lambdas below (curvedRow's content) aren't one, so resolve
+    // these here and hand them in as plain values.
+    val metricStyle = CurvedTextStyle(MaterialTheme.typography.caption3)
+    val metricColor = MaterialTheme.colors.onSurfaceVariant
+
+    Box(modifier = modifier.fillMaxSize()) {
+        CurvedLayout(
+            modifier = Modifier.fillMaxSize(),
+            anchor = 270f,
         ) {
-            MiniMetric("CPU", cpuPercent.toInt())
-            MiniMetric("RAM", ramPercent.toInt())
-            temperature?.let { MiniMetric("T", it.toInt(), suffix = temperatureUnit ?: "°") }
+            curvedRow {
+                curvedMetric("CPU", cpuPercent.toInt(), style = metricStyle, color = metricColor)
+                curvedMetric("RAM", ramPercent.toInt(), style = metricStyle, color = metricColor)
+                temperature?.let {
+                    curvedMetric("T", it.toInt(), suffix = temperatureUnit ?: "°", style = metricStyle, color = metricColor)
+                }
 
-            val icons = bar?.icons.orEmpty()
-            icons.take(2).forEach {
-                WatchIconView(
-                    icon = it.symbol,
-                    size = 10.dp,
-                    tint = watchUboIconColor(it.color, fallback = MaterialTheme.colors.onSurfaceVariant),
-                )
-            }
-
-            Box(modifier = Modifier.weight(1f))
-
-            val clock = bar?.clock.orEmpty()
-            if (clock.isNotEmpty()) {
-                Text(
-                    text = clock,
-                    style = MaterialTheme.typography.caption3.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colors.onSurfaceVariant,
-                )
+                val icons = bar?.icons.orEmpty()
+                icons.take(1).forEach { icon ->
+                    curvedComposable(modifier = CurvedModifier.curvedPadding(angular = 6.dp)) {
+                        WatchIconView(
+                            icon = icon.symbol,
+                            size = 10.dp,
+                            tint = watchUboIconColor(icon.color, fallback = metricColor),
+                        )
+                    }
+                }
             }
         }
+
         val progress = bar?.progressNotifications.orEmpty()
         if (progress.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                // Sits just under the curved arc — 44dp clears the
+                // metrics text at this radius comfortably.
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 44.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 progress.forEach { ProgressChip(it) }
@@ -84,12 +96,18 @@ public fun WatchStatusBarOverlay(
     }
 }
 
-@Composable
-private fun MiniMetric(label: String, value: Int, suffix: String = "%") {
-    Text(
-        "$label ${value}${suffix}",
-        style = MaterialTheme.typography.caption3,
-        color = MaterialTheme.colors.onSurfaceVariant,
+private fun CurvedScope.curvedMetric(
+    label: String,
+    value: Int,
+    suffix: String = "%",
+    style: CurvedTextStyle,
+    color: androidx.compose.ui.graphics.Color,
+) {
+    curvedText(
+        text = "$label ${value}${suffix}",
+        modifier = CurvedModifier.curvedPadding(angular = 4.dp),
+        style = style,
+        color = color,
     )
 }
 

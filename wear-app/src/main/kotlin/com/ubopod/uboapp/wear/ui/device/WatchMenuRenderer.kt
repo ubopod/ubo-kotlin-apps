@@ -3,6 +3,7 @@ package com.ubopod.uboapp.wear.ui.device
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -14,10 +15,14 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import com.ubopod.uboapp.wear.ui.common.WatchTitleText
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.MenuViewData
 import kotlinx.coroutines.launch
@@ -38,19 +43,13 @@ public fun WatchMenuRenderer(data: MenuViewData, viewModel: DeviceViewModel) {
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
     ) {
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp).rotaryScroll(listState),
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (data.title.isNotEmpty()) {
-                item {
-                    Text(
-                        text = data.title.compactForWatch(maxChars = 18),
-                        style = MaterialTheme.typography.title3,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+                item { WatchTitleText(title = data.title, maxChars = 18) }
             }
             data.heading?.takeIf { it.isNotEmpty() }?.let {
                 item {
@@ -68,6 +67,14 @@ public fun WatchMenuRenderer(data: MenuViewData, viewModel: DeviceViewModel) {
                         runCatching { viewModel.client.selectMenuItem(item) }
                     }
                 }
+            }
+            item {
+                Chip(
+                    onClick = { scope.launch { runCatching { viewModel.client.goBack() } } },
+                    label = { Text("Back") },
+                    colors = ChipDefaults.secondaryChipColors(),
+                    modifier = Modifier.fillMaxWidth(0.95f),
+                )
             }
             if (data.totalPages > 1) {
                 item {

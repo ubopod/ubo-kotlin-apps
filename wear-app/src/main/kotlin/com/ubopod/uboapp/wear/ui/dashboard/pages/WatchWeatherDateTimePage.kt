@@ -15,6 +15,7 @@ import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.ubopod.ubokotlin.models.SystemStats
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.ui.dashboard.WatchWeatherIcon
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -30,8 +31,9 @@ public fun WatchWeatherDateTimePage(stats: SystemStats) {
         .ifEmpty { null }
     val formattedDate = runCatching { LocalDate.parse(stats.date) }.getOrNull()?.format(DATE_FORMATTER)
 
+    val scrollState = rememberScrollState()
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).rotaryScroll(scrollState).padding(horizontal = 16.dp).padding(top = 30.dp, bottom = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {

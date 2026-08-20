@@ -21,6 +21,8 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import com.ubopod.uboapp.wear.ui.common.WatchIconView
+import com.ubopod.uboapp.wear.ui.common.watchUboIconColor
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.HomeViewData
 import com.ubopod.ubokotlin.models.MenuItemData
@@ -80,6 +82,7 @@ public fun WatchHomeRenderer(data: HomeViewData, viewModel: DeviceViewModel) {
 
 @Composable
 internal fun MenuChip(item: MenuItemData, onTap: () -> Unit) {
+    val icon = item.icon
     Chip(
         onClick = onTap,
         label = {
@@ -87,6 +90,11 @@ internal fun MenuChip(item: MenuItemData, onTap: () -> Unit) {
                 text = item.label.ifEmpty { item.key }.compactForWatch(),
                 maxLines = 1,
             )
+        },
+        icon = if (icon.isNotEmpty()) {
+            { WatchIconView(icon = icon, tint = watchUboIconColor(item.color)) }
+        } else {
+            null
         },
         colors = ChipDefaults.primaryChipColors(),
         modifier = Modifier.fillMaxWidth(0.95f),

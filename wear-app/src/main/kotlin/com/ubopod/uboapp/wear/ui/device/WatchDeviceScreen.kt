@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -16,10 +17,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.SwipeToDismissBox
 import androidx.wear.compose.material.Text
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
 import com.ubopod.ubokotlin.models.ViewData
+import kotlinx.coroutines.launch
 
 /**
  * Top-level connected screen for the wear app. Renders the current
@@ -34,16 +37,21 @@ public fun WatchDeviceScreen(viewModel: DeviceViewModel) {
     val state by viewModel.connectionState.collectAsStateWithLifecycle()
     val statusBar by viewModel.statusBar.collectAsStateWithLifecycle()
     val stats by viewModel.systemStats.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        WatchStatusBarOverlay(
-            bar = statusBar,
-            cpuPercent = stats?.cpuPercent ?: 0f,
-            ramPercent = stats?.ramPercent ?: 0f,
-            temperature = stats?.temperatureDisplayValue ?: stats?.temperature,
-            temperatureUnit = stats?.temperatureDisplayUnit,
-        )
-        Box(modifier = Modifier.fillMaxSize()) {
+    // WatchStatusBarOverlay is layered on top of the content, not stacked
+    // above it in a Column — its CurvedLayout needs the full screen's
+    // bounds to compute the circle's center/radius correctly, and a
+    // fillMaxSize() first child of a Column would claim the whole height
+    // and squeeze the content below it down to nothing.
+    Box(modifier = Modifier.fillMaxSize()) {
+        // The standard Wear OS back gesture: swipe in from the left edge
+        // to go back. Without this, the OS's own edge gesture (recent
+        // apps / system status) intercepts the swipe instead, since
+        // nothing in the app was claiming it.
+        SwipeToDismissBox(
+            onDismissed = { scope.launch { runCatching { viewModel.client.goBack() } } },
+        ) {
             when (val v = view) {
                 is ViewData.Home -> WatchHomeRenderer(v.data, viewModel)
                 is ViewData.Menu -> WatchMenuRenderer(v.data, viewModel)
@@ -56,6 +64,13 @@ public fun WatchDeviceScreen(viewModel: DeviceViewModel) {
                 null -> WaitingForView(state)
             }
         }
+        WatchStatusBarOverlay(
+            bar = statusBar,
+            cpuPercent = stats?.cpuPercent ?: 0f,
+            ramPercent = stats?.ramPercent ?: 0f,
+            temperature = stats?.temperatureDisplayValue ?: stats?.temperature,
+            temperatureUnit = stats?.temperatureDisplayUnit,
+        )
     }
 }
 

@@ -28,6 +28,8 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
+import com.ubopod.uboapp.wear.ui.common.WatchTitleText
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.ApplicationViewData
 import com.ubopod.ubokotlin.models.InstructionViewData
@@ -47,14 +49,12 @@ public fun WatchNotificationRenderer(data: NotificationViewData, viewModel: Devi
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp).rotaryScroll(listState),
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item {
-                Text(data.title.compactForWatch(20), style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
-            }
+            item { WatchTitleText(title = data.title) }
             item {
                 Text(data.content, style = MaterialTheme.typography.body2, textAlign = TextAlign.Center)
             }
@@ -108,7 +108,7 @@ public fun WatchInstructionRenderer(data: InstructionViewData, @Suppress("unused
             CircularProgressIndicator()
             Spacer(Modifier.height(6.dp))
         }
-        Text(data.title.compactForWatch(20), style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
+        WatchTitleText(title = data.title)
         Spacer(Modifier.height(4.dp))
         Text(data.instruction, style = MaterialTheme.typography.body2, textAlign = TextAlign.Center)
         if (data.timeoutSeconds > 0) {
@@ -138,14 +138,12 @@ public fun WatchPromptRenderer(data: PromptViewData, viewModel: DeviceViewModel)
     val listState = rememberScalingLazyListState()
     Scaffold(positionIndicator = { PositionIndicator(scalingLazyListState = listState) }) {
         ScalingLazyColumn(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp).rotaryScroll(listState),
             state = listState,
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            item {
-                Text(data.title.compactForWatch(20), style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
-            }
+            item { WatchTitleText(title = data.title) }
             item {
                 Text(data.prompt, style = MaterialTheme.typography.body2, textAlign = TextAlign.Center)
             }
@@ -182,7 +180,7 @@ public fun WatchRenderRenderer(data: RenderViewData, @Suppress("unused") viewMod
         verticalArrangement = Arrangement.Center,
     ) {
         if (data.title.isNotEmpty()) {
-            Text(data.title.compactForWatch(20), style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
+            WatchTitleText(title = data.title)
             Spacer(Modifier.height(4.dp))
         }
         Text(

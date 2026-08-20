@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -19,6 +21,8 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Power
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Waves
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,37 +36,52 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
+import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.SwipeToDismissBox
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.dialog.Alert
 import androidx.wear.compose.material.dialog.Dialog
 import com.ubopod.uboapp.wear.ui.common.WatchHapticStrength
 import com.ubopod.uboapp.wear.ui.common.rememberWatchHaptic
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.AudioDevice
 import com.ubopod.ubokotlin.models.Chime
-import com.ubopod.ubokotlin.models.UboColor
 import kotlinx.coroutines.launch
 
 /**
- * Watch counterpart of the phone-app's QuickActions + a power-section.
- * Compact ScalingLazyColumn of one-tap actions; the destructive power
- * actions present an [Alert] confirm. Push-to-talk lives here so the
- * user can engage it from a single tap rather than navigating to the
- * Device tab.
- *
- * Mirrors `ubo Watch App/Views/WatchActionsView.swift` (commit
- * `4a02f40 feat(audio,power): mic mute + Watch power controls`).
+ * Actions tab — Audio / LEDs / Display / Assistant / Power, one flat
+ * scrolling list. Folds Volume in as a pushed sub-screen (left-edge
+ * swipe to come back) rather than giving it its own top-level tab,
+ * matching `WatchActionsView.swift`'s section grouping exactly — no
+ * D-pad/remote control section either, since watchOS has no such screen
+ * at all.
  */
 @Composable
 public fun WatchActionsScreen(viewModel: DeviceViewModel) {
+    var showVolume by remember { mutableStateOf(false) }
+
+    if (showVolume) {
+        SwipeToDismissBox(onDismissed = { showVolume = false }) {
+            WatchVolumeScreen(viewModel)
+        }
+    } else {
+        ActionsListScreen(viewModel, onVolumeClick = { showVolume = true })
+    }
+}
+
+@Composable
+private fun ActionsListScreen(viewModel: DeviceViewModel, onVolumeClick: () -> Unit) {
     val scope = rememberCoroutineScope()
     val haptic = rememberWatchHaptic()
     val context = LocalContext.current
     val isMicCapturing by viewModel.isMicCapturing.collectAsStateWithLifecycle()
+    val stats by viewModel.systemStats.collectAsStateWithLifecycle()
+    val listState = rememberScalingLazyListState()
 
     var pendingPower by remember { mutableStateOf<PowerAction?>(null) }
 
@@ -80,31 +99,71 @@ public fun WatchActionsScreen(viewModel: DeviceViewModel) {
         else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
+    val volumePercent = stats?.playbackVolume?.let { "${(it * 100).toInt()}%" } ?: "—"
+    val isPlaybackMuted = stats?.isPlaybackMute == true
+    val isCaptureMuted = stats?.isCaptureMute == true
+
     val actions: List<ActionEntry> = listOf(
+        // Audio
         ActionEntry(
-            label = if (isMicCapturing) "Stop listening" else "Push to talk",
-            icon = if (isMicCapturing) Icons.Filled.MicOff else Icons.Filled.Mic,
-            onTap = {
-                haptic(WatchHapticStrength.MEDIUM)
-                toggleMic()
-            },
-        ),
-        ActionEntry("Chime", Icons.Filled.NotificationsActive) {
+            label = "Volume",
+            icon = Icons.Filled.VolumeUp,
+            trailingText = volumePercent,
+        ) { onVolumeClick() },
+        ActionEntry("Play Chime", Icons.Filled.NotificationsActive) {
             haptic(WatchHapticStrength.LIGHT)
             scope.launch { runCatching { viewModel.client.playChime(Chime.DONE) } }
         },
-        ActionEntry("Toggle mute", Icons.Filled.VolumeOff) {
+        ActionEntry(if (isPlaybackMuted) "Unmute" else "Mute", Icons.Filled.VolumeOff) {
             haptic(WatchHapticStrength.LIGHT)
             scope.launch { runCatching { viewModel.client.toggleMute(AudioDevice.OUTPUT) } }
         },
+        ActionEntry(if (isCaptureMuted) "Unmute Mic" else "Mute Mic", Icons.Filled.MicOff) {
+            haptic(WatchHapticStrength.LIGHT)
+            scope.launch { runCatching { viewModel.client.toggleMute(AudioDevice.INPUT) } }
+        },
+        // LEDs
         ActionEntry("Rainbow", Icons.Filled.Palette) {
             haptic(WatchHapticStrength.LIGHT)
             scope.launch { runCatching { viewModel.client.rainbowLEDs() } }
         },
+        ActionEntry("Pulse", Icons.Filled.Waves) {
+            haptic(WatchHapticStrength.LIGHT)
+            scope.launch { runCatching { viewModel.client.pulseLEDs(color = com.ubopod.ubokotlin.models.UboColor.Blue) } }
+        },
         ActionEntry("LEDs off", Icons.Filled.Palette) {
             haptic(WatchHapticStrength.LIGHT)
-            scope.launch { runCatching { viewModel.client.setLEDColor(UboColor.Black) } }
+            scope.launch { runCatching { viewModel.client.clearLEDs() } }
         },
+        // Display
+        ActionEntry("Sleep", Icons.Filled.Bedtime) {
+            haptic(WatchHapticStrength.LIGHT)
+            scope.launch { runCatching { viewModel.client.blankDisplay() } }
+        },
+        ActionEntry("Wake", Icons.Filled.LightMode) {
+            haptic(WatchHapticStrength.LIGHT)
+            scope.launch { runCatching { viewModel.client.unblankDisplay() } }
+        },
+        // Assistant
+        ActionEntry(
+            label = if (isMicCapturing) "Stop listening" else "Push to talk",
+            icon = if (isMicCapturing) Icons.Filled.MicOff else Icons.Filled.Mic,
+        ) {
+            haptic(WatchHapticStrength.MEDIUM)
+            toggleMic()
+        },
+        // Device-routed session (the pod listens with its own mics).
+        // Disabled while the watch mic is streaming so the two entry
+        // points can't interleave and desync — mirrors WatchActionsView.
+        ActionEntry(
+            label = "Assistant on Pod",
+            icon = Icons.Filled.Mic,
+            enabled = !isMicCapturing,
+        ) {
+            haptic(WatchHapticStrength.MEDIUM)
+            scope.launch { runCatching { viewModel.client.toggleAssistantListening() } }
+        },
+        // Power
         ActionEntry("Reboot", Icons.Filled.RestartAlt) {
             haptic(WatchHapticStrength.MEDIUM)
             pendingPower = PowerAction.REBOOT
@@ -116,7 +175,8 @@ public fun WatchActionsScreen(viewModel: DeviceViewModel) {
     )
 
     ScalingLazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp).rotaryScroll(listState),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         items(actions) { entry ->
@@ -124,7 +184,9 @@ public fun WatchActionsScreen(viewModel: DeviceViewModel) {
                 onClick = entry.onTap,
                 label = { Text(entry.label, maxLines = 1) },
                 icon = { Icon(entry.icon, contentDescription = null) },
+                secondaryLabel = entry.trailingText?.let { { Text(it) } },
                 colors = ChipDefaults.primaryChipColors(),
+                enabled = entry.enabled,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -178,5 +240,7 @@ private enum class PowerAction { REBOOT, POWER_OFF }
 private data class ActionEntry(
     val label: String,
     val icon: ImageVector,
+    val trailingText: String? = null,
+    val enabled: Boolean = true,
     val onTap: () -> Unit,
 )

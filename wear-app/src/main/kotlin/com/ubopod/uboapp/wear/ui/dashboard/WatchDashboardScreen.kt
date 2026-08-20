@@ -1,7 +1,6 @@
 package com.ubopod.uboapp.wear.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
@@ -11,9 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.wear.compose.material.HorizontalPageIndicator
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.PageIndicatorState
 import androidx.wear.compose.material.Text
 import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchAppsPage
 import com.ubopod.uboapp.wear.ui.dashboard.pages.WatchSensorPage
@@ -54,24 +51,17 @@ public fun WatchDashboardScreen(viewModel: DeviceViewModel) {
     val pageCount = sensorPageOffset + currentStats.sensorDevices.size
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { pageCount })
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            when {
-                page == 0 -> WatchSystemPage(currentStats)
-                page == 1 -> WatchWeatherDateTimePage(currentStats)
-                page == appsPageIndex -> WatchAppsPage(currentStats.dockerApps)
-                else -> currentStats.sensorDevices.getOrNull(page - sensorPageOffset)?.let { device ->
-                    WatchSensorPage(device)
-                }
+    // No page indicator here — WatchContentScreen already renders one for
+    // the outer 5-tab pager. Stacking a second one at the same
+    // bottom-center position for this inner pager made both unreadable.
+    HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+        when {
+            page == 0 -> WatchSystemPage(currentStats)
+            page == 1 -> WatchWeatherDateTimePage(currentStats)
+            page == appsPageIndex -> WatchAppsPage(currentStats.dockerApps)
+            else -> currentStats.sensorDevices.getOrNull(page - sensorPageOffset)?.let { device ->
+                WatchSensorPage(device)
             }
         }
-        HorizontalPageIndicator(
-            pageIndicatorState = object : PageIndicatorState {
-                override val pageOffset: Float get() = pagerState.currentPageOffsetFraction
-                override val selectedPage: Int get() = pagerState.currentPage
-                override val pageCount: Int get() = pageCount
-            },
-            modifier = Modifier.align(Alignment.BottomCenter),
-        )
     }
 }

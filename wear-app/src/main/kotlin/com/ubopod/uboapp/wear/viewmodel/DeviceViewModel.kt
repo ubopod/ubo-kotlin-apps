@@ -84,6 +84,16 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
                 }
             }
         }
+
+        // Auto-attempt the saved connection once on cold-start, mirroring
+        // the phone-app ViewModel. Runs in viewModelScope (not tied to
+        // WatchConnectionScreen's composition) so a fast failure doesn't
+        // cause repeated auto-connect attempts every time the router
+        // remounts that screen — that used to retry in a tight loop,
+        // flickering between the connecting and connection screens.
+        viewModelScope.launch {
+            runCatching { connectWithSavedSettings() }
+        }
     }
 
     public val isConnected: StateFlow<Boolean> = client.connectionState

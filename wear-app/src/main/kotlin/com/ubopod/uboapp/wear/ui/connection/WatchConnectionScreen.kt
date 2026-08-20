@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,7 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
@@ -57,11 +57,11 @@ public fun WatchConnectionScreen(viewModel: DeviceViewModel) {
     val scope = rememberCoroutineScope()
     val listState = rememberScalingLazyListState()
 
-    LaunchedEffect(Unit) {
-        if (host.isNotEmpty() && state == ConnectionState.DISCONNECTED) {
-            viewModel.connectWithSavedSettings()
-        }
-    }
+    // Auto-connecting on cold-start is handled once by DeviceViewModel's
+    // init block, not here — this composable remounts every time the
+    // router falls back to it (including right after a failed connect
+    // attempt), so an auto-connect tied to its own composition would
+    // retry in a tight loop on any fast failure.
 
     Scaffold(
         positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
@@ -98,17 +98,18 @@ public fun WatchConnectionScreen(viewModel: DeviceViewModel) {
                 )
             }
             item {
-                Button(
+                Chip(
                     onClick = {
                         val port = portText.toIntOrNull() ?: 50051
                         scope.launch {
                             runCatching { viewModel.connect(host.trim(), port, useTls) }
                         }
                     },
+                    label = { Text("Connect") },
+                    colors = ChipDefaults.primaryChipColors(),
                     enabled = host.isNotBlank() && state != ConnectionState.CONNECTING,
-                ) {
-                    Text("Connect")
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             item { Spacer(Modifier.height(8.dp)) }
         }

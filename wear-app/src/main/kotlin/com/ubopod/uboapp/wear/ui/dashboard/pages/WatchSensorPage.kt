@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
@@ -19,6 +20,7 @@ import androidx.wear.compose.material.Text
 import com.ubopod.ubokotlin.models.SensorDeviceState
 import com.ubopod.ubokotlin.models.SensorDeviceStatus
 import com.ubopod.ubokotlin.models.SensorEntityReading
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.ui.dashboard.WatchCompactGauge
 import com.ubopod.uboapp.wear.ui.dashboard.WatchDashboardFormat
 import com.ubopod.uboapp.wear.ui.dashboard.WatchSensorDisplay
@@ -30,11 +32,19 @@ import com.ubopod.uboapp.wear.ui.dashboard.WatchSensorDisplay
  */
 @Composable
 public fun WatchSensorPage(device: SensorDeviceState) {
+    val scrollState = rememberScrollState()
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).rotaryScroll(scrollState).padding(horizontal = 16.dp).padding(top = 30.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(device.label, style = MaterialTheme.typography.title3, maxLines = 1)
+        // A few extra dp on the title only — see WatchAppsPage for why.
+        Text(
+            device.label,
+            style = MaterialTheme.typography.title3,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 6.dp),
+        )
 
         when (device.status) {
             SensorDeviceStatus.ACTIVE -> for (entity in device.entities) {
@@ -70,8 +80,19 @@ private fun EntityRow(entity: SensorEntityReading) {
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(spec.icon, contentDescription = null, modifier = Modifier.size(12.dp))
-            Text(label, style = MaterialTheme.typography.caption2, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(valueText + ((entity.displayUnit ?: entity.unit)?.let { " $it" } ?: ""), style = MaterialTheme.typography.caption2)
+            Text(
+                label,
+                style = MaterialTheme.typography.caption2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                valueText + ((entity.displayUnit ?: entity.unit)?.let { " $it" } ?: ""),
+                style = MaterialTheme.typography.caption2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

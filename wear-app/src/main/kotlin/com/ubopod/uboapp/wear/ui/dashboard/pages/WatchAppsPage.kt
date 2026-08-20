@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
@@ -25,6 +26,7 @@ import androidx.wear.compose.material.Text
 import com.ubopod.ubokotlin.models.DockerAppStatus
 import com.ubopod.ubokotlin.models.DockerItemHealth
 import com.ubopod.ubokotlin.models.DockerItemStatus
+import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 
 /**
  * Page 3 of the Wear Dashboard: one compact row per installed Docker app,
@@ -51,11 +53,15 @@ private fun present(app: DockerAppStatus): WatchAppPresentation = when (app.heal
 @Composable
 public fun WatchAppsPage(apps: List<DockerAppStatus>) {
     val sorted = apps.sortedBy { it.label.ifEmpty { it.id } }
+    val scrollState = rememberScrollState()
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(8.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).rotaryScroll(scrollState).padding(horizontal = 16.dp).padding(top = 30.dp, bottom = 8.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text("Apps", style = MaterialTheme.typography.title3)
+        // A few extra dp on the title only — list rows fit fine at the
+        // Column's base padding, but a full-width title runs closer to
+        // the bezel at this row's height and needs a bit more clearance.
+        Text("Apps", style = MaterialTheme.typography.title3, modifier = Modifier.padding(start = 6.dp))
         for (app in sorted) {
             val presentation = present(app)
             Row(
@@ -64,8 +70,20 @@ public fun WatchAppsPage(apps: List<DockerAppStatus>) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Icon(presentation.icon, contentDescription = null, tint = presentation.color, modifier = Modifier.size(12.dp))
-                Text(app.label.ifEmpty { app.id }, style = MaterialTheme.typography.caption2, maxLines = 1, modifier = Modifier.weight(1f))
-                Text(presentation.text, style = MaterialTheme.typography.caption2, color = presentation.color)
+                Text(
+                    app.label.ifEmpty { app.id },
+                    style = MaterialTheme.typography.caption2,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    presentation.text,
+                    style = MaterialTheme.typography.caption2,
+                    color = presentation.color,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
