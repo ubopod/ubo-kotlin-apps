@@ -77,6 +77,10 @@ dependencies {
     implementation(libs.wear.compose.material)
     implementation(libs.wear.compose.foundation)
 
+    // Real QR bitmap generation for RenderKind.QrCode/QrCodeCarousel — same
+    // library the phone-app already uses (see ui/common/QrCode.kt there).
+    implementation(libs.zxing.core)
+
     // Wear Tile — compact CPU/RAM tile in the watch's tile carousel.
     implementation(libs.wear.tiles)
     implementation(libs.wear.tiles.material)

@@ -1,11 +1,19 @@
 package com.ubopod.uboapp.wear.ui.device
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,7 +23,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
@@ -29,6 +42,7 @@ import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import com.ubopod.uboapp.wear.ui.common.WatchTitleText
+import com.ubopod.uboapp.wear.ui.common.generateQrCodeBitmap
 import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.ApplicationViewData
@@ -169,25 +183,31 @@ public fun WatchPromptRenderer(data: PromptViewData, viewModel: DeviceViewModel)
 
 @Composable
 public fun WatchRenderRenderer(data: RenderViewData, @Suppress("unused") viewModel: DeviceViewModel) {
-    val payload: String = when (val v = data.props["data"] ?: data.props["text"] ?: data.props["payload"]) {
-        is RenderPropValue.StringValue -> v.value
-        is RenderPropValue.IntValue -> v.value.toString()
-        else -> ""
-    }
-    androidx.compose.foundation.layout.Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        if (data.title.isNotEmpty()) {
-            WatchTitleText(title = data.title)
-            Spacer(Modifier.height(4.dp))
+    when (data.kind) {
+        RenderKind.QrCode -> WatchQrCodeRender(data)
+        RenderKind.QrCodeCarousel -> WatchQrCodeCarouselRender(data)
+        else -> {
+            val payload: String = when (val v = data.props["data"] ?: data.props["text"] ?: data.props["payload"]) {
+                is RenderPropValue.StringValue -> v.value
+                is RenderPropValue.IntValue -> v.value.toString()
+                else -> ""
+            }
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                if (data.title.isNotEmpty()) {
+                    WatchTitleText(title = data.title)
+                    Spacer(Modifier.height(4.dp))
+                }
+                Text(
+                    text = describeRenderKind(data.kind, payload),
+                    style = MaterialTheme.typography.body2,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
-        Text(
-            text = describeRenderKind(data.kind, payload),
-            style = MaterialTheme.typography.body2,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -200,4 +220,134 @@ private fun describeRenderKind(kind: RenderKind, payload: String): String = when
     RenderKind.FrameStream -> "Live stream (open phone app)"
     RenderKind.Readings -> "Readings (open phone app)"
     is RenderKind.Unknown -> "Unsupported view: ${kind.raw}"
+}
+
+/**
+ * Every producer (tailscale/rpi-connect/vscode/hermes setup services) sends
+ * the QR-encoded string under `value` — never `data`, `url`, or `payload`.
+ * Mirrors the phone app's `RenderProps.kt` / the Swift port's
+ * `QRCodeRenderView`.
+ */
+private fun RenderViewData.stringProp(key: String): String = when (val v = props[key]) {
+    is RenderPropValue.StringValue -> v.value
+    else -> ""
+}
+
+private fun RenderViewData.stringListProp(key: String): List<String> =
+    (props[key] as? RenderPropValue.ListValue)?.value.orEmpty()
+        .mapNotNull { (it as? RenderPropValue.StringValue)?.value }
+
+/**
+ * A real scannable QR bitmap, not a placeholder — the watch screen is close
+ * enough in size to the pod's own 1.56" display and the ESP32 display, both
+ * of which render actual QR codes at this scale. No hyperlink/value text
+ * underneath: there's no browser here to act on it, so it would just cost
+ * the QR the room it needs (same reasoning as the pod GUI's
+ * QRCodeRenderPage, which drops URL-shaped labels for the same reason).
+ * `caption` is kept since it's not a link — it's a code the user types
+ * after scanning (e.g. an OAuth device code).
+ */
+@Composable
+private fun WatchQrCodeRender(data: RenderViewData) {
+    val value = data.stringProp("value")
+    val caption = data.stringProp("caption")
+    val image = remember(value) { generateQrCodeBitmap(value) }
+    val scrollState = rememberScrollState()
+
+    // Scrollable rather than a fixed vertically-centered box: title/caption
+    // length is server-driven (varies per producer — a device code here, a
+    // longer link elsewhere), and a QR big enough to scan plus two lines of
+    // title and caption doesn't reliably fit in the ~140dp left after
+    // reserving room for the curved status bar overlay above. Scrolling
+    // means a longer instance never silently clips instead of needing a
+    // fresh size guess per case.
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .verticalScroll(scrollState)
+            .rotaryScroll(scrollState)
+            .padding(horizontal = 16.dp)
+            .padding(top = 36.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        if (data.title.isNotEmpty()) {
+            QrPageLabel(data.title, MaterialTheme.typography.caption2)
+        }
+        if (image != null) {
+            Image(
+                bitmap = image,
+                contentDescription = "QR code",
+                filterQuality = FilterQuality.None,
+                modifier = Modifier.fillMaxWidth(0.52f).aspectRatio(1f).background(Color.White).padding(2.dp),
+            )
+        } else {
+            Text("Empty QR payload", style = MaterialTheme.typography.caption2)
+        }
+        if (caption.isNotEmpty()) {
+            QrPageLabel(caption, MaterialTheme.typography.caption2.copy(fontWeight = FontWeight.SemiBold))
+        }
+    }
+}
+
+@Composable
+private fun WatchQrCodeCarouselRender(data: RenderViewData) {
+    val values = remember(data) { data.stringListProp("values") }
+
+    if (values.isEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text("No QR data", style = MaterialTheme.typography.caption2)
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(pageCount = { values.size })
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .verticalScroll(scrollState)
+            .rotaryScroll(scrollState)
+            .padding(horizontal = 16.dp)
+            .padding(top = 36.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        if (data.title.isNotEmpty()) {
+            QrPageLabel(data.title, MaterialTheme.typography.caption2)
+        }
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth()) { index ->
+            val image = remember(values[index]) { generateQrCodeBitmap(values[index]) }
+            if (image != null) {
+                Image(
+                    bitmap = image,
+                    contentDescription = "QR code ${index + 1} of ${values.size}",
+                    filterQuality = FilterQuality.None,
+                    modifier = Modifier.fillMaxWidth(0.52f).aspectRatio(1f).background(Color.White).padding(2.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * QR page title/caption text, capped to a fraction of the available width
+ * rather than a fixed dp inset. The QR image pushes this close to the
+ * round bezel's curve, where the flat side-padding other pages use isn't
+ * enough — the true safe width shrinks the closer the row sits to the top
+ * or bottom edge, so a width fraction holds regardless of exactly how
+ * close that ends up being, instead of relying on one dp guess.
+ */
+@Composable
+private fun QrPageLabel(text: String, style: TextStyle) {
+    Text(
+        text,
+        style = style,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth(0.62f),
+    )
 }
