@@ -20,6 +20,17 @@ public object WatchSensorDisplay {
         "illuminance" to WatchSensorSpec(Icons.Filled.WbSunny, 0f..1000f),
         "carbon_dioxide" to WatchSensorSpec(Icons.Filled.Air, 400f..2000f),
         "aqi" to WatchSensorSpec(Icons.Filled.Air, 1f..5f),
+        // PMSA003I's particulate-matter readings (registry.default.json) —
+        // typical indoor/ambient µg/m³ scale, coarse enough to fill the
+        // gauge meaningfully without needing a precise AQI breakpoint
+        // table for a small watch ring.
+        "pm1" to WatchSensorSpec(Icons.Filled.Air, 0f..100f),
+        "pm25" to WatchSensorSpec(Icons.Filled.Air, 0f..100f),
+        "pm10" to WatchSensorSpec(Icons.Filled.Air, 0f..150f),
+        // ENS160's TVOC entity — 0-2200 ppb covers "excellent" through
+        // "poor" on ENS160's own IAQ scale; everyday indoor readings stay
+        // well under this, unhealthy/severe territory starts above it.
+        "volatile_organic_compounds_parts" to WatchSensorSpec(Icons.Filled.Air, 0f..2200f),
     )
     private val fallback = WatchSensorSpec(Icons.Outlined.Circle, null)
 
