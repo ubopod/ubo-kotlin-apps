@@ -7,9 +7,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.PagerSnapDistance
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.ubopod.uboapp.wear.ui.common.LocalOuterPagerScrolling
 import com.ubopod.uboapp.wear.ui.connection.WatchConnectionScreen
 import com.ubopod.uboapp.wear.ui.controls.WatchActionsScreen
 import com.ubopod.uboapp.wear.ui.dashboard.WatchDashboardScreen
@@ -78,14 +83,36 @@ private fun ConnectedShell(viewModel: DeviceViewModel) {
         return
     }
 
-    VerticalPager(
-        state = pagerState,
-        modifier = Modifier.fillMaxSize(),
-    ) { page ->
-        when (page) {
-            0 -> WatchDashboardScreen(viewModel)
-            1 -> WatchDeviceScreen(viewModel)
-            2 -> WatchActionsScreen(viewModel)
+    // The root cause of a 3-tab swipe sometimes skipping the middle tab:
+    // a page's own `rotaryScrollable` (crown/bezel wiring on its
+    // ScalingLazyColumn or verticalScroll) was found to interfere with
+    // this Pager's own
+    // swipe-to-change-tab gesture even under plain touch input — a 3-tab
+    // swipe reliably skipped the middle tab with it attached, and reliably
+    // didn't once it was removed from the destination page. Only letting
+    // pages wire up rotary input once a tab switch has actually settled
+    // (not while this Pager is still mid-scroll) keeps the crown usable
+    // without it fighting the gesture that gets you there.
+    CompositionLocalProvider(LocalOuterPagerScrolling provides pagerState.isScrollInProgress) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize(),
+            // A fast swipe's fling velocity can otherwise carry the pager past
+            // the adjacent page in one gesture — with only 3 tabs, that means
+            // a single swipe from Dashboard can land straight on Actions,
+            // skipping Device (the main view) entirely. Capping the snap
+            // distance to 1 keeps every swipe to exactly one tab over, no
+            // matter how fast the flick.
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                pagerSnapDistance = PagerSnapDistance.atMost(1),
+            ),
+        ) { page ->
+            when (page) {
+                0 -> WatchDashboardScreen(viewModel)
+                1 -> WatchDeviceScreen(viewModel)
+                2 -> WatchActionsScreen(viewModel)
+            }
         }
     }
 }
