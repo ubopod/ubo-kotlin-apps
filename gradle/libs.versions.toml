@@ -48,15 +48,13 @@ wearTiles = "1.4.1"
 wearProtoLayout = "1.2.1"
 
 # Glance (home-screen widget) + WorkManager (periodic refresh).
-# WorkManager pinned just below the version that bumps compileSdk to 35
-# so the rest of the project can stay on compileSdk 34 / Android 14.
 glance = "1.1.1"
-workManager = "2.9.1"
+workManager = "2.11.2"
 
 # Min/target SDK — mirrors plan: API 31 / Android 12 floor.
 minSdk = "31"
-compileSdk = "34"
-targetSdk = "34"
+compileSdk = "35"
+targetSdk = "35"
 
 [libraries]
 # AndroidX runtime

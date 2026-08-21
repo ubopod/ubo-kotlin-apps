@@ -1,7 +1,16 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose.compiler)
+}
+
+val keystoreProperties = Properties().apply {
+    val propsFile = rootProject.file("keystore.properties")
+    if (propsFile.exists()) {
+        propsFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -12,8 +21,19 @@ android {
         applicationId = "com.ubopod.uboapp.phone"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
+        versionCode = 2
         versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystoreProperties.containsKey("storeFile")) {
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
     }
 
     buildFeatures {
@@ -38,6 +58,7 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

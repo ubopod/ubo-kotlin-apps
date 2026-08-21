@@ -11,3 +11,7 @@ local.properties
 .vscode/
 .DS_Store
 captures/
+
+# Signing
+keystore.properties
+keystore/
