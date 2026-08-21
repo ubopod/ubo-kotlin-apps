@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Mic
@@ -171,6 +172,13 @@ private fun ActionsListScreen(viewModel: DeviceViewModel, onVolumeClick: () -> U
         ActionEntry("Power off", Icons.Filled.Power) {
             haptic(WatchHapticStrength.MEDIUM)
             pendingPower = PowerAction.POWER_OFF
+        },
+        // Connection — mirrors the phone app's Settings-tab Disconnect
+        // button / Device-tab toolbar icon (same glyph, no confirm) and
+        // WatchActionsView.swift's equivalent row.
+        ActionEntry("Disconnect", Icons.AutoMirrored.Filled.Logout) {
+            haptic(WatchHapticStrength.MEDIUM)
+            scope.launch { viewModel.disconnect() }
         },
     )
 
