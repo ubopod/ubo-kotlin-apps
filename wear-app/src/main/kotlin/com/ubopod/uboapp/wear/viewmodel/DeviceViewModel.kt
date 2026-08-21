@@ -18,6 +18,7 @@ import com.ubopod.ubokotlin.UboClient
 import com.ubopod.ubokotlin.connection.ConnectionState
 import com.ubopod.ubokotlin.connection.DiscoveredDevice
 import com.ubopod.ubokotlin.connection.UboDiscovery
+import com.ubopod.ubokotlin.models.AssistantTriggerSource
 import com.ubopod.ubokotlin.models.PlaybackEvent
 import com.ubopod.ubokotlin.models.StatusBarData
 import com.ubopod.ubokotlin.models.SystemStats
@@ -153,7 +154,15 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         _isMicCapturing.value = false
     }
 
-    public suspend fun toggleMicCapture() {
+    /**
+     * Toggle push-to-talk mic capture.
+     *
+     * [triggerSource] tells the core how the session was triggered so it can
+     * pick a turn-completion policy. Left `null` the core applies none and the
+     * pipeline falls back to a short silence window; pass a quick-chat wake to
+     * have the pod end the turn after its configured silence window instead.
+     */
+    public suspend fun toggleMicCapture(triggerSource: AssistantTriggerSource? = null) {
         if (micCapture.isRunning) {
             micCapture.stop()
             _isMicCapturing.value = false
@@ -162,7 +171,9 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
             // Same id on the session and every sample, so the core listens to
             // this app's mic and drops the device's built-in mic.
             val source = settings.getOrCreateAudioSourceId()
-            runCatching { client.startAssistantListening(audioSource = source) }
+            runCatching {
+                client.startAssistantListening(audioSource = source, source = triggerSource)
+            }
             micCapture.start(audioSource = source)
             _isMicCapturing.value = micCapture.isRunning
         }
