@@ -6,12 +6,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +44,7 @@ import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.Icon
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
@@ -49,6 +53,8 @@ import com.ubopod.uboapp.wear.ui.common.WatchTitleText
 import com.ubopod.uboapp.wear.ui.common.decodeRgb888Frame
 import com.ubopod.uboapp.wear.ui.common.generateQrCodeBitmap
 import com.ubopod.uboapp.wear.ui.common.rotaryScroll
+import com.ubopod.uboapp.wear.ui.dashboard.WatchCompactGauge
+import com.ubopod.uboapp.wear.ui.dashboard.WatchSensorDisplay
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.ApplicationViewData
 import com.ubopod.ubokotlin.models.InstructionViewData
@@ -195,6 +201,8 @@ public fun WatchRenderRenderer(data: RenderViewData, viewModel: DeviceViewModel)
         RenderKind.QrCode -> WatchQrCodeRender(data)
         RenderKind.QrCodeCarousel -> WatchQrCodeCarouselRender(data)
         RenderKind.FrameStream -> WatchFrameStreamRender(data, viewModel)
+        RenderKind.ImageViewer -> WatchImageViewerRender(data, viewModel)
+        RenderKind.Readings -> WatchReadingsRender(data)
         else -> {
             val payload: String = when (val v = data.props["data"] ?: data.props["text"] ?: data.props["payload"]) {
                 is RenderPropValue.StringValue -> v.value
@@ -224,10 +232,9 @@ private fun describeRenderKind(kind: RenderKind, payload: String): String = when
     RenderKind.QrCode, RenderKind.QrCodeCarousel ->
         "Open the phone app to scan the QR code." + if (payload.isNotEmpty()) "\n$payload" else ""
     RenderKind.TextViewer -> payload.ifEmpty { "(no content)" }
-    RenderKind.ImageViewer -> "Image (open phone app)"
     RenderKind.Status -> payload.ifEmpty { "Status" }
     RenderKind.FrameStream -> "Live stream (open phone app)"
-    RenderKind.Readings -> "Readings (open phone app)"
+    RenderKind.ImageViewer, RenderKind.Readings -> "" // dispatched to a real renderer above
     is RenderKind.Unknown -> "Unsupported view: ${kind.raw}"
 }
 
@@ -420,5 +427,175 @@ private fun WatchFrameStreamRender(data: RenderViewData, viewModel: DeviceViewMo
                 CircularProgressIndicator()
             }
         }
+    }
+}
+
+/**
+ * Static image from the device, decoded via the same frame-stream wire
+ * protocol as [WatchFrameStreamRender] — the watch previously fell back to
+ * "Image (open phone app)" text here. Shown at its natural aspect ratio
+ * inside a scrollable column rather than a fixed square box, since a still
+ * image isn't guaranteed square like a live camera feed. Mirrors the phone
+ * app's ImageViewerRenderView / the Swift port's `WatchImageViewer`.
+ */
+@Composable
+private fun WatchImageViewerRender(data: RenderViewData, viewModel: DeviceViewModel) {
+    var bitmap by remember(data.streamId) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(data.streamId) {
+        viewModel.client.frameStream(data.streamId)
+            .catch { /* stream ended; UI keeps the last frame */ }
+            .collect { frame ->
+                // Off the main thread — see WatchFrameStreamRender's note on
+                // why this collect must not decode inline.
+                val decoded = withContext(Dispatchers.Default) {
+                    decodeRgb888Frame(frame.data, frame.width, frame.height)
+                }
+                decoded?.let { bitmap = it }
+            }
+    }
+
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .verticalScroll(scrollState)
+            .rotaryScroll(scrollState)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (data.title.isNotEmpty()) {
+            WatchTitleText(title = data.title)
+        }
+        val currentBitmap = bitmap
+        if (currentBitmap != null) {
+            Image(
+                bitmap = currentBitmap.asImageBitmap(),
+                contentDescription = data.title.ifEmpty { "Image" },
+                filterQuality = FilterQuality.None,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            CircularProgressIndicator()
+        }
+    }
+}
+
+// Sized generously for the common case (Hardware > Sensors drills into one
+// entity at a time, so most Readings screens show a single row): the
+// System/Sensor dashboard pages' gauge (WatchCompactGauge's own 56.dp/
+// labelWidth-equals-size default) is tuned for 2-3 gauges sharing a row and
+// truncates a full word like "Temperature"/"Illuminance" to "Temper…" at
+// that width. Matches the dashboard Sensor page's single-gauge treatment
+// (WatchSensorPage.kt's `labelWidth = 150.dp` for a lone gauge).
+private val ReadingGaugeSize = 68.dp
+private val ReadingLabelWidth = 150.dp
+
+/**
+ * Parallel labels/values/units/keys/device_classes prop arrays rendered as
+ * gauge rows (device classes with a known range) or plain icon/label/value
+ * rows otherwise — the watch previously fell back to "Readings (open phone
+ * app)" text here. Reuses the same gauge/spec lookup as the System/Sensor
+ * dashboard pages, and the same plain-Column layout (not a `ScalingLazyColumn`
+ * list) as the dashboard Sensor page (`WatchSensorPage.kt`): a single reading
+ * is vertically centered rather than pinned to the top behind the curved
+ * status-bar overlay, and multiple readings get explicit top clearance
+ * instead of relying on list auto-centering. Mirrors the phone app's
+ * ReadingsRenderView / the Swift port's `WatchReadingsView`.
+ */
+@Composable
+private fun WatchReadingsRender(data: RenderViewData) {
+    val labels = remember(data) { data.stringListProp("labels") }
+    val values = remember(data) { data.stringListProp("values") }
+    val units = remember(data) { data.stringListProp("units") }
+    val keys = remember(data) { data.stringListProp("keys") }
+    val deviceClasses = remember(data) { data.stringListProp("device_classes") }
+
+    val content: @Composable ColumnScope.() -> Unit = {
+        if (data.title.isNotEmpty()) {
+            // A plain single-line Text here, not WatchTitleText: this
+            // title is a device+entity name (e.g. "VEML7700 Ambient
+            // Light") — longer than the short menu/notification titles
+            // WatchTitleText is sized for, and at title3 size it wraps to
+            // 2 lines and collides with the curved status-bar overlay
+            // above. maxLines=1 + ellipsis matches the dashboard Sensor
+            // page's device.label treatment (WatchSensorPage.kt).
+            Text(
+                data.title,
+                style = MaterialTheme.typography.title3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+            )
+        }
+        if (labels.isEmpty()) {
+            Text("No readings yet", style = MaterialTheme.typography.caption2)
+        } else {
+            for (index in labels.indices) {
+                val label = labels[index]
+                val value = values.getOrElse(index) { "" }
+                val unit = units.getOrElse(index) { "" }
+                val key = keys.getOrElse(index) { "" }
+                val deviceClass = deviceClasses.getOrNull(index)?.takeIf { it.isNotEmpty() }
+                val spec = WatchSensorDisplay.spec(key, deviceClass)
+                val range = spec.range
+                val floatValue = value.toFloatOrNull()
+
+                if (range != null && floatValue != null) {
+                    WatchCompactGauge(
+                        fraction = WatchSensorDisplay.rangeFraction(floatValue, range),
+                        valueText = value,
+                        label = label,
+                        color = MaterialTheme.colors.primary,
+                        size = ReadingGaugeSize,
+                        labelWidth = ReadingLabelWidth,
+                        unit = unit.ifEmpty { null },
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(spec.icon, contentDescription = null, modifier = Modifier.size(12.dp))
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.caption2,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            value + (if (unit.isEmpty()) "" else " $unit"),
+                            style = MaterialTheme.typography.caption2,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (labels.size <= 1) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            content = content,
+        )
+    } else {
+        val scrollState = rememberScrollState()
+        Column(
+            modifier = Modifier.fillMaxSize()
+                .verticalScroll(scrollState)
+                .rotaryScroll(scrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = 36.dp, bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
     }
 }
