@@ -21,7 +21,9 @@ android {
         applicationId = "com.ubopod.uboapp.phone"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 2
+        // Shared version-code sequence with wear-app (same applicationId,
+        // same Play Console listing) — wear-app is already at 3.
+        versionCode = 4
         versionName = "0.1.0"
     }
 
@@ -57,7 +59,12 @@ android {
 
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = signingConfigs.getByName("release")
         }
     }

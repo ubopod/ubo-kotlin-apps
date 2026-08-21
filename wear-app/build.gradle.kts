@@ -18,10 +18,16 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.ubopod.uboapp.wear"
+        // Matches phone-app's applicationId — Play Console's Wear OS form
+        // factor track lives under the same app listing as the phone app,
+        // which requires every track to share one package name.
+        applicationId = "com.ubopod.uboapp.phone"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 1
+        // versionCode is a single sequence shared across every form-factor
+        // track under that one listing — phone-app is already at 2, so
+        // this must be higher, not restarted from 1.
+        versionCode = 3
         versionName = "0.1.0"
     }
 
@@ -59,7 +65,12 @@ android {
 
     buildTypes {
         getByName("release") {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = signingConfigs.getByName("release")
         }
     }
