@@ -10,16 +10,20 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.wear.tiles.TileService
 import com.ubopod.uboapp.wear.service.WatchAudioPlaybackService
 import com.ubopod.uboapp.wear.service.WatchMicCaptureService
+import com.ubopod.uboapp.wear.storage.RecentConnection
 import com.ubopod.uboapp.wear.storage.UboWearSettings
 import com.ubopod.uboapp.wear.tile.UboTileService
 import com.ubopod.uboapp.wear.tile.WearStatsStore
 import com.ubopod.ubokotlin.UboClient
 import com.ubopod.ubokotlin.connection.ConnectionState
+import com.ubopod.ubokotlin.connection.DiscoveredDevice
+import com.ubopod.ubokotlin.connection.UboDiscovery
 import com.ubopod.ubokotlin.models.PlaybackEvent
 import com.ubopod.ubokotlin.models.StatusBarData
 import com.ubopod.ubokotlin.models.SystemStats
 import com.ubopod.ubokotlin.models.ViewData
 import com.ubopod.ubokotlin.models.WebUIInputDescription
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -57,6 +61,12 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         .stateIn(viewModelScope, SharingStarted.Eagerly, UboWearSettings.DEFAULT_PORT)
     public val savedUseTls: StateFlow<Boolean> = settings.savedUseTls
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    public val recentConnections: StateFlow<List<RecentConnection>> = settings.recentConnections
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _discovered = MutableStateFlow<Set<DiscoveredDevice>>(emptySet())
+    public val discovered: StateFlow<Set<DiscoveredDevice>> = _discovered.asStateFlow()
+    private var discoveryJob: Job? = null
 
     init {
         // Throttled (5 s) write of SystemStats to the wear-local DataStore
@@ -107,6 +117,7 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         settings.setHost(host)
         settings.setPort(port)
         settings.setUseTls(useTls)
+        settings.recordRecentConnection(host, port, useTls)
         client.connect(host, port, useTls)
         client.startViewSubscription()
         client.startStatsSubscription()
@@ -170,6 +181,21 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
                 PlaybackEvent.Stop -> audioPlayback.stop()
             }
         }
+    }
+
+    public fun startDiscovery() {
+        discoveryJob?.cancel()
+        discoveryJob = viewModelScope.launch {
+            UboDiscovery.browse(getApplication()).collect { snapshot ->
+                _discovered.value = snapshot
+            }
+        }
+    }
+
+    public fun stopDiscovery() {
+        discoveryJob?.cancel()
+        discoveryJob = null
+        _discovered.value = emptySet()
     }
 
     public suspend fun connectWithSavedSettings(): Boolean {
