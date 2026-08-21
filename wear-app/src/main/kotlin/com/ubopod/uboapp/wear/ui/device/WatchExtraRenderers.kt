@@ -1,8 +1,10 @@
 package com.ubopod.uboapp.wear.ui.device
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -18,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -25,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +46,7 @@ import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import com.ubopod.uboapp.wear.ui.common.WatchTitleText
+import com.ubopod.uboapp.wear.ui.common.decodeRgb888Frame
 import com.ubopod.uboapp.wear.ui.common.generateQrCodeBitmap
 import com.ubopod.uboapp.wear.ui.common.rotaryScroll
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
@@ -53,6 +58,7 @@ import com.ubopod.ubokotlin.models.RenderKind
 import com.ubopod.ubokotlin.models.RenderPropValue
 import com.ubopod.ubokotlin.models.RenderViewData
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 /* ----- Notification ----- */
@@ -182,10 +188,11 @@ public fun WatchPromptRenderer(data: PromptViewData, viewModel: DeviceViewModel)
 /* ----- Render (text-only on the watch) ----- */
 
 @Composable
-public fun WatchRenderRenderer(data: RenderViewData, @Suppress("unused") viewModel: DeviceViewModel) {
+public fun WatchRenderRenderer(data: RenderViewData, viewModel: DeviceViewModel) {
     when (data.kind) {
         RenderKind.QrCode -> WatchQrCodeRender(data)
         RenderKind.QrCodeCarousel -> WatchQrCodeCarouselRender(data)
+        RenderKind.FrameStream -> WatchFrameStreamRender(data, viewModel)
         else -> {
             val payload: String = when (val v = data.props["data"] ?: data.props["text"] ?: data.props["payload"]) {
                 is RenderPropValue.StringValue -> v.value
@@ -350,4 +357,54 @@ private fun QrPageLabel(text: String, style: TextStyle) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth(0.62f),
     )
+}
+
+/**
+ * Live RGB-frame stream from the device (video playback, camera
+ * viewfinder). Subscribes to `UboClient.frameStream(streamId)` and decodes
+ * each 3-byte-per-pixel RGB frame to a [Bitmap] for display — the watch
+ * previously fell back to "Live stream (open phone app)" text here.
+ * Mirrors the phone app's `FrameStreamRender`.
+ */
+@Composable
+private fun WatchFrameStreamRender(data: RenderViewData, viewModel: DeviceViewModel) {
+    var bitmap by remember(data.streamId) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(data.streamId) {
+        viewModel.client.frameStream(data.streamId)
+            .catch { /* stream ended; UI keeps the last frame */ }
+            .collect { frame ->
+                decodeRgb888Frame(frame.data, frame.width, frame.height)?.let { bitmap = it }
+            }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+    ) {
+        if (data.title.isNotEmpty()) {
+            WatchTitleText(title = data.title)
+        }
+        Box(
+            modifier = Modifier.fillMaxWidth(0.8f).aspectRatio(1f).background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            val currentBitmap = bitmap
+            if (currentBitmap != null) {
+                // fillMaxSize(), not fillMaxWidth(): this Box already has a
+                // definite square size (fillMaxWidth + aspectRatio), but
+                // Image only reliably scales UP a small bitmap to fill its
+                // container when both dimensions are constrained.
+                Image(
+                    bitmap = currentBitmap.asImageBitmap(),
+                    contentDescription = data.title.ifEmpty { "Stream" },
+                    filterQuality = FilterQuality.None,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                CircularProgressIndicator()
+            }
+        }
+    }
 }
