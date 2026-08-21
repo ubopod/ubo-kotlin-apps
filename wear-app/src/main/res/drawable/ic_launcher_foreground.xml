@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The Ubo wordmark is baked into ic_launcher_background (matches the
+     phone app's icon); this layer just needs *some* drawable content — an
+     empty vector (no path elements) appears to make Android's adaptive
+     icon compositor treat the whole icon as invalid and fall back to the
+     system default, so draw a fully transparent 1x1 path instead of
+     nothing. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30 m-22,0 a22,22 0 1,0 44,0 a22,22 0 1,0 -44,0z" />
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,76 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0z" />
+        android:fillColor="#00000000"
+        android:pathData="M0,0h1v1h-1z" />
 </vector>
