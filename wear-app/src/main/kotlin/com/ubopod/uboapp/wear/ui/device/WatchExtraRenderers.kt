@@ -57,9 +57,11 @@ import com.ubopod.ubokotlin.models.PromptViewData
 import com.ubopod.ubokotlin.models.RenderKind
 import com.ubopod.ubokotlin.models.RenderPropValue
 import com.ubopod.ubokotlin.models.RenderViewData
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /* ----- Notification ----- */
 
@@ -374,7 +376,19 @@ private fun WatchFrameStreamRender(data: RenderViewData, viewModel: DeviceViewMo
         viewModel.client.frameStream(data.streamId)
             .catch { /* stream ended; UI keeps the last frame */ }
             .collect { frame ->
-                decodeRgb888Frame(frame.data, frame.width, frame.height)?.let { bitmap = it }
+                // Off the main thread: this collect runs on LaunchedEffect's
+                // (main-thread) scope, and decoding is a width*height pixel
+                // loop repeated on every incoming frame — at live-stream
+                // frame rates that's enough main-thread work, often enough,
+                // to make the edge-swipe-to-dismiss gesture unrecognizable
+                // (confirmed: swipe-back stopped working specifically on
+                // this screen once real decoding replaced the text
+                // fallback). Only hopping back to set `bitmap` touches the
+                // UI thread.
+                val decoded = withContext(Dispatchers.Default) {
+                    decodeRgb888Frame(frame.data, frame.width, frame.height)
+                }
+                decoded?.let { bitmap = it }
             }
     }
 
