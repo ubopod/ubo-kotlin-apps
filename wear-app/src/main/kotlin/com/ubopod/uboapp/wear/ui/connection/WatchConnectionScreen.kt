@@ -32,6 +32,7 @@ import androidx.wear.compose.material.SwipeToDismissBox
 import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.ToggleChip
+import com.ubopod.uboapp.wear.storage.UboWearSettings
 import com.ubopod.uboapp.wear.ui.common.WatchTextField
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
@@ -124,7 +125,7 @@ private fun ConnectionFormScreen(viewModel: DeviceViewModel, onWifiSetupClick: (
             }
             item {
                 Chip(
-                    onClick = { connect(host, portText.toIntOrNull() ?: 50051, useTls) },
+                    onClick = { connect(host, portText.toIntOrNull() ?: UboWearSettings.DEFAULT_PORT, useTls) },
                     label = { Text("Connect") },
                     colors = ChipDefaults.primaryChipColors(),
                     enabled = host.isNotBlank() && state != ConnectionState.CONNECTING,
@@ -199,7 +200,11 @@ private fun ConnectionFormScreen(viewModel: DeviceViewModel, onWifiSetupClick: (
             item {
                 Chip(
                     onClick = onWifiSetupClick,
-                    label = { Text("Set up a new Ubo's Wi-Fi", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    // Short enough to fit the chip at default scale; the
+                    // "New Device Setup" header above supplies the context
+                    // the longer wording used to carry. Two lines so a large
+                    // accessibility font wraps instead of truncating.
+                    label = { Text("Set up Wi-Fi", maxLines = 2, overflow = TextOverflow.Ellipsis) },
                     colors = ChipDefaults.secondaryChipColors(),
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -215,7 +220,7 @@ private fun LabeledTextField(label: String, value: String, onChange: (String) ->
         label = label,
         value = value,
         onValueChange = onChange,
-        placeholder = if (isPort) "50051" else "192.168.1.10",
+        placeholder = if (isPort) UboWearSettings.DEFAULT_PORT.toString() else "192.168.1.10",
         keyboardOptions = if (isPort) {
             KeyboardOptions(keyboardType = KeyboardType.Number)
         } else {

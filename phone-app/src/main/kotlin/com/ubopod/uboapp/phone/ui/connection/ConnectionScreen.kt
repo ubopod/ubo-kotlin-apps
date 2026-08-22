@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ubopod.uboapp.phone.storage.RecentConnection
+import com.ubopod.uboapp.phone.storage.UboSettings
 import com.ubopod.uboapp.phone.ui.settings.WifiQrCodeScreen
 import com.ubopod.uboapp.phone.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.UboError
@@ -139,7 +140,7 @@ public fun ConnectionScreen(viewModel: DeviceViewModel) {
 
         Button(
             onClick = {
-                val port = portText.toIntOrNull() ?: 50051
+                val port = portText.toIntOrNull() ?: UboSettings.DEFAULT_PORT
                 // Use the ViewModel-scoped trigger so the in-flight probe
                 // survives ContentScreen's CONNECTING-state route swap.
                 viewModel.triggerConnect(host.trim(), port, useTls)

@@ -137,7 +137,7 @@ public class UboSettings(private val context: Context) {
     }
 
     public companion object {
-        public const val DEFAULT_PORT: Int = 50051
+        public const val DEFAULT_PORT: Int = 50053
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
         private val KEY_USE_TLS: Preferences.Key<Boolean> = booleanPreferencesKey("device_use_tls")
