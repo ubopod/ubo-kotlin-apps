@@ -22,8 +22,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // Shared version-code sequence with wear-app (same applicationId,
-        // same Play Console listing) — wear-app is already at 3.
-        versionCode = 4
+        // same Play Console listing) — wear-app is already at 5.
+        versionCode = 6
         versionName = "0.1.0"
     }
 

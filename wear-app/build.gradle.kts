@@ -25,9 +25,9 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // versionCode is a single sequence shared across every form-factor
-        // track under that one listing — phone-app is already at 2, so
-        // this must be higher, not restarted from 1.
-        versionCode = 3
+        // track under that one listing — phone-app is already at 6, so
+        // this must be unique within that sequence, not restarted from 1.
+        versionCode = 5
         versionName = "0.1.0"
     }
 
