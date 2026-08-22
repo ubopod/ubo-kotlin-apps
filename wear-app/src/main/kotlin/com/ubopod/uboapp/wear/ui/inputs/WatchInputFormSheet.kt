@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,15 +21,10 @@ import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.ButtonDefaults
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.ToggleChip
-import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
-import androidx.wear.compose.material.Switch
+import com.ubopod.uboapp.wear.ui.common.WatchTextField
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.models.InputFieldDescription
 import com.ubopod.ubokotlin.models.InputFieldType
@@ -148,13 +144,11 @@ private fun FieldEditor(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(label, style = MaterialTheme.typography.caption1)
-            BasicTextField(
+            WatchTextField(
+                label = label,
                 value = text,
                 onValueChange = onTextChange,
                 singleLine = field.type != InputFieldType.LONG,
-                textStyle = MaterialTheme.typography.body2.copy(color = MaterialTheme.colors.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colors.primary),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = when (field.type) {
                         InputFieldType.NUMBER, InputFieldType.RANGE -> KeyboardType.Number
@@ -162,13 +156,6 @@ private fun FieldEditor(
                         else -> KeyboardType.Text
                     },
                 ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colors.onSurface.copy(alpha = 0.08f),
-                        RoundedCornerShape(8.dp),
-                    )
-                    .padding(6.dp),
             )
         }
     }

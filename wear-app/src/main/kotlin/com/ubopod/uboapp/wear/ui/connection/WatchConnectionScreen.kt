@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -17,8 +16,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,10 +28,11 @@ import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.PositionIndicator
 import androidx.wear.compose.material.Scaffold
-import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.SwipeToDismissBox
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.ToggleChip
+import com.ubopod.uboapp.wear.ui.common.WatchTextField
 import com.ubopod.uboapp.wear.viewmodel.DeviceViewModel
 import com.ubopod.ubokotlin.connection.ConnectionState
 import com.ubopod.ubokotlin.connection.DiscoveredDevice
@@ -213,18 +211,15 @@ private fun ConnectionFormScreen(viewModel: DeviceViewModel, onWifiSetupClick: (
 
 @Composable
 private fun LabeledTextField(label: String, value: String, onChange: (String) -> Unit, isPort: Boolean) {
-    androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.caption2)
-        BasicTextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = TextStyle(color = MaterialTheme.colors.onSurface, fontSize = MaterialTheme.typography.body2.fontSize),
-            cursorBrush = SolidColor(MaterialTheme.colors.primary),
-            keyboardOptions = if (isPort) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        )
-    }
+    WatchTextField(
+        label = label,
+        value = value,
+        onValueChange = onChange,
+        placeholder = if (isPort) "50051" else "192.168.1.10",
+        keyboardOptions = if (isPort) {
+            KeyboardOptions(keyboardType = KeyboardType.Number)
+        } else {
+            KeyboardOptions.Default
+        },
+    )
 }
