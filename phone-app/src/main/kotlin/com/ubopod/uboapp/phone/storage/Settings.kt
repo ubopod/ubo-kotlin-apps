@@ -40,6 +40,15 @@ public class UboSettings(private val context: Context) {
     public val savedUseTls: Flow<Boolean> = context.dataStore.data
         .map { it[KEY_USE_TLS] ?: false }
 
+    /**
+     * Whether the app was connected the last time it was closed. Used to
+     * decide whether to auto-connect on launch: only if the user was
+     * actually connected last time, not just because credentials happen
+     * to be on file. Mirrors Swift `DeviceViewModel.wasConnected`.
+     */
+    public val wasConnected: Flow<Boolean> = context.dataStore.data
+        .map { it[KEY_WAS_CONNECTED] ?: false }
+
     /** The last [RECENT_CONNECTIONS_LIMIT] distinct (host, port) pairs, most recent first. */
     public val recentConnections: Flow<List<RecentConnection>> = context.dataStore.data
         .map { it.toRecentConnections() }
@@ -65,6 +74,10 @@ public class UboSettings(private val context: Context) {
 
     public suspend fun setUseTls(useTls: Boolean) {
         context.dataStore.edit { it[KEY_USE_TLS] = useTls }
+    }
+
+    public suspend fun setWasConnected(wasConnected: Boolean) {
+        context.dataStore.edit { it[KEY_WAS_CONNECTED] = wasConnected }
     }
 
     /**
@@ -141,6 +154,7 @@ public class UboSettings(private val context: Context) {
         private val KEY_HOST: Preferences.Key<String> = stringPreferencesKey("device_host")
         private val KEY_PORT: Preferences.Key<Int> = intPreferencesKey("device_port")
         private val KEY_USE_TLS: Preferences.Key<Boolean> = booleanPreferencesKey("device_use_tls")
+        private val KEY_WAS_CONNECTED: Preferences.Key<Boolean> = booleanPreferencesKey("device_was_connected")
         private val KEY_ONBOARDED: Preferences.Key<Boolean> = booleanPreferencesKey("has_completed_onboarding")
         private val KEY_CAMERA_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("camera_source_id")
         private val KEY_AUDIO_SOURCE_ID: Preferences.Key<String> = stringPreferencesKey("audio_source_id")

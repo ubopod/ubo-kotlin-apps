@@ -127,9 +127,11 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
         audioPlayback.bind(client)
         audioPlayback.start()
         startPlaybackForwarding()
+        settings.setWasConnected(true)
     }
 
     public suspend fun disconnect() {
+        settings.setWasConnected(false)
         stopMicCapture()
         client.stopPlaybackSubscription()
         audioPlayback.stop()
@@ -212,6 +214,10 @@ public class DeviceViewModel(application: Application) : AndroidViewModel(applic
     public suspend fun connectWithSavedSettings(): Boolean {
         val host = settings.savedHost.first()
         if (host.isEmpty()) return false
+        // Only reconnect if the app was actually connected the last time
+        // it was closed — a saved host alone isn't consent to silently
+        // reconnect underneath the user after they explicitly disconnected.
+        if (!settings.wasConnected.first()) return false
         val port = settings.savedPort.first()
         val useTls = settings.savedUseTls.first()
         connect(host, port, useTls)
